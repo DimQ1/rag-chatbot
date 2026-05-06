@@ -1,0 +1,204 @@
+<div class="page-layout">
+  <mat-toolbar class="topbar">
+    <button mat-icon-button routerLink="/chat" aria-label="Back to chat">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>Admin Panel</span>
+    <span class="spacer"></span>
+    <button mat-button (click)="loadUsers(); loadDocuments(); loadRagConfiguration()">Refresh</button>
+  </mat-toolbar>
+
+  <div class="content">
+    @if (errorMessage()) {
+      <p class="error">{{ errorMessage() }}</p>
+    }
+
+    <mat-card class="panel-shell">
+      <mat-card-content>
+        <mat-tab-group animationDuration="0ms">
+          <mat-tab label="User Management">
+            <div class="tab-panel">
+              @if (loading()) {
+                <div class="loading-wrap"><mat-spinner diameter="32"></mat-spinner></div>
+              } @else {
+                <div class="user-section-header">
+                  <div>
+                    <h2>User Management</h2>
+                    <p>Edit profile details, roles, and reset passwords without leaving the panel.</p>
+                  </div>
+                  <div class="user-count-pill">{{ users.length }} users</div>
+                </div>
+
+                <div class="user-card-grid">
+                  @for (user of users; track user.id) {
+                    <mat-card class="user-card">
+                      <mat-card-content>
+                        <div class="user-card-top">
+                          <div>
+                            <div class="user-email">{{ user.email }}</div>
+                            <div class="user-created">Joined {{ user.createdAtUtc | date:'medium' }}</div>
+                          </div>
+                          <div class="user-badges">
+                            <span class="badge role-badge" [class.admin]="user.role === 'Admin'">{{ user.role }}</span>
+                            <span class="badge password-badge" [class.enabled]="user.hasPassword">{{ user.hasPassword ? 'Password set' : 'Google only' }}</span>
+                          </div>
+                        </div>
+
+                        <div [formGroup]="editForms[user.id]" class="user-form-grid">
+                          <mat-form-field appearance="outline" class="full-width">
+                            <mat-label>Name</mat-label>
+                            <input matInput formControlName="name" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline" class="full-width compact-field">
+                            <mat-label>Role</mat-label>
+                            <mat-select formControlName="role">
+                              <mat-option value="User">User</mat-option>
+                              <mat-option value="Admin">Admin</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline" class="full-width password-field">
+                            <mat-label>Reset password</mat-label>
+                            <input matInput type="password" placeholder="Leave empty to keep existing password" formControlName="newPassword" />
+                          </mat-form-field>
+                        </div>
+
+                        <div class="card-actions">
+                          <button mat-flat-button color="primary" (click)="save(user)" [disabled]="savingId() === user.id">Save changes</button>
+                          <button mat-stroked-button color="warn" (click)="delete(user)" [disabled]="deletingId() === user.id">Delete user</button>
+                        </div>
+                      </mat-card-content>
+                    </mat-card>
+                  }
+                </div>
+              }
+            </div>
+          </mat-tab>
+
+          <mat-tab label="RAG Document Management">
+            <div class="tab-panel docs-panel">
+              @if (documentMessage()) {
+                <p class="success">{{ documentMessage() }}</p>
+              }
+
+              @if (documentsLoading()) {
+                <div class="loading-wrap"><mat-spinner diameter="32"></mat-spinner></div>
+              } @else {
+                <div class="docs-layout">
+                  <div class="docs-sidebar">
+                    <button mat-raised-button color="primary" class="new-doc-button" (click)="startNewDocument()">
+                      New document
+                    </button>
+
+                    <button mat-stroked-button class="new-doc-button" (click)="reprocessAllDocuments()" [disabled]="documentReprocessing()">
+                      Reprocess all in vector DB
+                    </button>
+
+                    @for (document of documents; track document.id) {
+                      <button
+                        mat-stroked-button
+                        class="doc-item"
+                        [class.active]="activeDocumentId === document.id"
+                        (click)="selectDocument(document)">
+                        <span class="doc-title">{{ document.title }}</span>
+                        <span class="doc-meta">{{ document.fileName }}</span>
+                      </button>
+                    }
+                  </div>
+
+                  <div class="doc-editor">
+                    <div [formGroup]="documentForm" class="doc-form">
+                      <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>Document title</mat-label>
+                        <input matInput formControlName="title" />
+                      </mat-form-field>
+
+                      <mat-form-field appearance="outline" class="full-width doc-content-field">
+                        <mat-label>Markdown content</mat-label>
+                        <textarea matInput rows="20" formControlName="content"></textarea>
+                      </mat-form-field>
+                    </div>
+
+                    <div class="doc-actions">
+                      <button mat-raised-button color="primary" (click)="saveDocument()" [disabled]="documentSaving()">
+                        Save document
+                      </button>
+                      <button mat-stroked-button (click)="reprocessActiveDocument()" [disabled]="!activeDocumentId || documentReprocessing()">
+                        Reprocess current
+                      </button>
+                      <button mat-stroked-button color="warn" (click)="deleteDocument()" [disabled]="!activeDocumentId || documentDeleting()">
+                        Delete document
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-tab>
+
+          <mat-tab label="RAG Models & Endpoints">
+            <div class="tab-panel config-panel">
+              @if (ragConfigMessage()) {
+                <p class="success">{{ ragConfigMessage() }}</p>
+              }
+
+              @if (ragConfigLoading()) {
+                <div class="loading-wrap"><mat-spinner diameter="32"></mat-spinner></div>
+              } @else {
+                <div class="config-shell" [formGroup]="ragConfigurationForm">
+                  <div class="config-header">
+                    <div>
+                      <h2>RAG Models and Endpoints</h2>
+                      <p>Configure the chat completion base URL, model id, API key, and retrieval depth used by the RAG endpoint.</p>
+                    </div>
+                    @if (ragConfiguration) {
+                      <div class="config-updated">Updated {{ ragConfiguration.updatedAtUtc | date:'medium' }}</div>
+                    }
+                  </div>
+
+                  <div class="config-grid">
+                    <mat-form-field appearance="outline" class="full-width config-wide">
+                      <mat-label>OpenAI-compatible base URL</mat-label>
+                      <input matInput formControlName="openAIBaseUrl" placeholder="https://api.openai.com/v1" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Model ID</mat-label>
+                      <input matInput formControlName="modelId" placeholder="gpt-4o-mini" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Embedding Model ID</mat-label>
+                      <input matInput formControlName="embeddingModelId" placeholder="text-embedding-3-small" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>Top K documents</mat-label>
+                      <input matInput type="number" min="1" max="10" formControlName="topK" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="full-width config-wide">
+                      <mat-label>API key</mat-label>
+                      <input matInput type="password" formControlName="openAIApiKey" placeholder="Enter API key or leave empty for retrieval-only mode" />
+                    </mat-form-field>
+                  </div>
+
+                  <div class="config-note">
+                    Leaving the API key empty keeps the app in retrieval-only fallback mode. The embedding model setting is stored for current and future embedding-backed retrieval flows.
+                  </div>
+
+                  <div class="config-actions">
+                    <button mat-flat-button color="primary" (click)="saveRagConfiguration()" [disabled]="ragConfigSaving()">
+                      Save configuration
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

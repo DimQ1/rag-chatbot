@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "frontend: ng serve",
+      "type": "shell",
+      "command": "npm start",
+      "options": {
+        "cwd": "${workspaceFolder}/rag-chatbot"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": "$tsc",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Building|Watch mode enabled|Application bundle generation",
+          "endsPattern": "Application bundle generation complete|Local:"
+        }
+      },
+      "group": "build"
+    },
+    {
+      "label": "backend: dotnet watch",
+      "type": "shell",
+      "command": "dotnet watch run --launch-profile http",
+      "options": {
+        "cwd": "${workspaceFolder}/rag-chatbot-api",
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "csharp",
+        "pattern": "$msCompile",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "dotnet watch",
+          "endsPattern": "Now listening on:"
+        }
+      },
+      "group": "build"
+    },
+    {
+      "label": "start: fullstack",
+      "dependsOn": [
+        "backend: dotnet watch",
+        "frontend: ng serve"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}

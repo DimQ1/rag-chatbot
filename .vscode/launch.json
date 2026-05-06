@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Frontend: Chrome (localhost:4200)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/rag-chatbot"
+    },
+    {
+      "name": "Frontend: ng serve + Chrome",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "preLaunchTask": "frontend: ng serve",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/rag-chatbot",
+      "sourceMapPathOverrides": {
+        "webpack:/*": "${workspaceFolder}/rag-chatbot/*",
+        "/./*": "${workspaceFolder}/rag-chatbot/*"
+      }
+    },
+    {
+      "name": "Backend: .NET API (debug)",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/rag-chatbot-api/rag-chatbot-api.csproj",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Frontend + Backend",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "preLaunchTask": "start: fullstack",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}/rag-chatbot"
+    }
+  ]
+}

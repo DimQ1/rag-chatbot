@@ -1,0 +1,122 @@
+<div class="chat-layout">
+  <!-- Toolbar -->
+  <mat-toolbar class="toolbar">
+    <div class="toolbar-brand">
+      <mat-icon class="brand-icon">smart_toy</mat-icon>
+      <span class="brand-name">RAG Chatbot</span>
+    </div>
+    <span class="spacer"></span>
+    <div class="toolbar-actions">
+      <button mat-icon-button (click)="clearChat()" matTooltip="New chat" aria-label="New chat">
+        <mat-icon>edit_note</mat-icon>
+      </button>
+      <button mat-icon-button routerLink="/account" matTooltip="My account" aria-label="My account">
+        <mat-icon>manage_accounts</mat-icon>
+      </button>
+      @if (isAdmin) {
+        <button mat-icon-button routerLink="/admin" matTooltip="Admin panel" aria-label="Admin panel">
+          <mat-icon>admin_panel_settings</mat-icon>
+        </button>
+      }
+      <div class="user-chip">
+        <div class="avatar avatar-sm">{{ userInitial }}</div>
+        <span class="user-name">{{ userName }}</span>
+      </div>
+      <button mat-icon-button (click)="authService.logout()" matTooltip="Sign out" aria-label="Sign out">
+        <mat-icon>logout</mat-icon>
+      </button>
+    </div>
+  </mat-toolbar>
+
+  <!-- Messages -->
+  <div class="messages-container">
+
+    @if ((messages$ | async)?.length === 0 && !thinking()) {
+      <div class="empty-state">
+        <mat-icon class="empty-icon">forum</mat-icon>
+        <h2>How can I help you today?</h2>
+        <p>Ask me anything and I'll search the knowledge base for you.</p>
+      </div>
+    }
+
+    @for (msg of messages$ | async; track trackById($index, msg)) {
+      <div class="message" [class.user]="msg.role === 'user'" [class.assistant]="msg.role === 'assistant'">
+
+        @if (msg.role === 'assistant') {
+          <div class="avatar avatar-bot">
+            <mat-icon>smart_toy</mat-icon>
+          </div>
+        }
+
+        <div class="bubble">
+          <p class="text">{{ msg.content }}</p>
+          @if (msg.sources && msg.sources.length > 0) {
+            <div class="sources">
+              <span class="sources-label">
+                <mat-icon class="sources-icon">link</mat-icon>Sources
+              </span>
+              @for (source of msg.sources; track source.url) {
+                <a [href]="source.url" target="_blank" rel="noopener noreferrer" class="source-link">{{ source.title }}</a>
+              }
+            </div>
+          }
+          <span class="timestamp">{{ msg.timestamp | date:'shortTime' }}</span>
+        </div>
+
+        @if (msg.role === 'user') {
+          <div class="avatar avatar-user">{{ userInitial }}</div>
+        }
+
+      </div>
+    }
+
+    @if (thinking()) {
+      <div class="message assistant">
+        <div class="avatar avatar-bot">
+          <mat-icon>smart_toy</mat-icon>
+        </div>
+        <div class="bubble thinking">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    }
+
+    <div #messagesEnd></div>
+  </div>
+
+  <!-- Input -->
+  <div class="input-area">
+    <div class="input-wrapper">
+      <mat-form-field appearance="outline" class="input-field">
+        <textarea
+          matInput
+          [formControl]="inputControl"
+          (keydown)="onEnter($event)"
+          placeholder="Message RAG Chatbot..."
+          rows="1"
+          cdkTextareaAutosize
+          [cdkAutosizeMinRows]="1"
+          [cdkAutosizeMaxRows]="5"
+        ></textarea>
+      </mat-form-field>
+      <div class="input-meta">
+        <span class="char-count" [class.warn]="(inputControl.value?.length ?? 0) > 1800">
+          {{ inputControl.value?.length ?? 0 }} / 2000
+        </span>
+        <span class="hint">Shift+Enter for new line</span>
+      </div>
+    </div>
+    <button
+      mat-fab
+      class="send-btn"
+      (click)="send()"
+      [disabled]="inputControl.invalid || thinking()"
+      aria-label="Send message"
+      matTooltip="Send"
+    >
+      <mat-icon>arrow_upward</mat-icon>
+    </button>
+  </div>
+</div>

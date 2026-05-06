@@ -1,0 +1,51 @@
+# Root workspace ignores for the full-stack repo.
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.history/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/mcp.json
+
+# Node / Angular
+**/node_modules/
+**/dist/
+**/.angular/
+**/.angular/cache/
+**/coverage/
+**/tmp/
+**/out-tsc/
+npm-debug.log*
+yarn-error.log*
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Local application data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+**/*.sqlite3
+**/*.log
+*.local.json
+.env
+.env.*
+!.env.example
+
+# Project-specific local files
+rag-chatbot-api/rag-chatbot-api.csproj.user

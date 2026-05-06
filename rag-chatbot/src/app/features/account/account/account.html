@@ -1,0 +1,60 @@
+<div class="page-layout">
+  <mat-toolbar class="topbar">
+    <button mat-icon-button routerLink="/chat" aria-label="Back to chat">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>My Account</span>
+    <span class="spacer"></span>
+    <button mat-button (click)="authService.logout()">Sign out</button>
+  </mat-toolbar>
+
+  <div class="content">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Profile</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Name</mat-label>
+            <input matInput formControlName="name" />
+          </mat-form-field>
+          <button mat-raised-button color="primary" type="submit" [disabled]="profileSaving || profileForm.invalid">
+            @if (profileSaving) {<mat-spinner diameter="18"></mat-spinner>} @else {Save profile}
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Change Password</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Current Password</mat-label>
+            <input matInput type="password" formControlName="currentPassword" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>New Password</mat-label>
+            <input matInput type="password" formControlName="newPassword" />
+          </mat-form-field>
+          <button mat-raised-button color="primary" type="submit" [disabled]="passwordSaving || passwordForm.invalid">
+            @if (passwordSaving) {<mat-spinner diameter="18"></mat-spinner>} @else {Update password}
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    @if (errorMessage) {
+      <p class="error">{{ errorMessage }}</p>
+    }
+    @if (profileMessage) {
+      <p class="success">{{ profileMessage }}</p>
+    }
+    @if (passwordMessage) {
+      <p class="success">{{ passwordMessage }}</p>
+    }
+  </div>
+</div>
