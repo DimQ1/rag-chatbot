@@ -52,6 +52,7 @@ export class Chat implements AfterViewChecked {
   ]);
 
   thinking = signal(false);
+  readonly sessionsPanelOpen = signal(true);
 
   private readonly questionHistory: string[] = [];
   private historyPosition = -1;
@@ -68,6 +69,14 @@ export class Chat implements AfterViewChecked {
 
   get isAdmin(): boolean {
     return this.authService.isAdmin();
+  }
+
+  toggleSessionsPanel(): void {
+    this.sessionsPanelOpen.update((isOpen) => !isOpen);
+  }
+
+  closeSessionsPanel(): void {
+    this.sessionsPanelOpen.set(false);
   }
 
   createNewChat(): void {

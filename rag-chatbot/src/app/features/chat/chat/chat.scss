@@ -15,6 +15,16 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+  transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+  min-width: 280px;
+
+  &.closed {
+    width: 0;
+    min-width: 0;
+    opacity: 0;
+    border-right: 0;
+    box-shadow: none;
+  }
 
   @media (max-width: 768px) {
     width: 240px;
@@ -30,6 +40,11 @@
     z-index: 1000;
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
   }
+}
+
+.chat-layout.sidebar-collapsed .sessions-sidebar {
+  width: 0;
+  min-width: 0;
 }
 
 .chat-main {
@@ -69,6 +84,11 @@
       white-space: nowrap;
       letter-spacing: -0.5px;
     }
+  }
+
+  .sidebar-toggle {
+    margin-right: 10px;
+    color: #4a5568;
   }
 
   .spacer {

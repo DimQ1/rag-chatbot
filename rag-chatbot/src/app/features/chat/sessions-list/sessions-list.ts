@@ -1,8 +1,7 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
@@ -10,7 +9,6 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { RouterLink, RouterLinkActive } from '@angular/router';
 import { ChatService, ChatSession } from '../../../core/services/chat';
 import { RenameSessionDialogComponent } from './rename-session-dialog/rename-session-dialog.component';
 
@@ -19,11 +17,8 @@ import { RenameSessionDialogComponent } from './rename-session-dialog/rename-ses
   standalone: true,
   imports: [
     CommonModule,
-    RouterLink,
-    RouterLinkActive,
     MatButtonModule,
     MatIconModule,
-    MatListModule,
     MatTooltipModule,
     MatMenuModule,
     MatDividerModule,
@@ -38,6 +33,7 @@ import { RenameSessionDialogComponent } from './rename-session-dialog/rename-ses
 export class SessionsListComponent implements OnInit {
   private readonly chatService = inject(ChatService);
   private readonly dialog = inject(MatDialog);
+  @Output() hideRequested = new EventEmitter<void>();
 
   readonly sessions = this.chatService.sessions;
   readonly currentSessionId = this.chatService.currentSessionId;
@@ -58,12 +54,17 @@ export class SessionsListComponent implements OnInit {
     this.chatService.createSession().subscribe({
       next: (session) => {
         this.chatService.setCurrentSession(session.id);
+        this.chatService.clearMessages();
         this.loadSessions();
       },
       error: (err) => {
         console.error('Failed to create session:', err);
       },
     });
+  }
+
+  requestHide(): void {
+    this.hideRequested.emit();
   }
 
   selectSession(sessionId: string): void {
@@ -116,23 +117,6 @@ export class SessionsListComponent implements OnInit {
           console.error('Failed to delete session:', err);
         },
       });
-    }
-  }
-
-  formatDate(date: string | Date): string {
-    const d = new Date(date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    if (d.toDateString() === today.toDateString()) {
-      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    } else if (d.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else if (d.getFullYear() === today.getFullYear()) {
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else {
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
     }
   }
 }

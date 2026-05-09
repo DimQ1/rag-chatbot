@@ -1,32 +1,40 @@
 <div class="sessions-container">
   <div class="sessions-header">
     <h2>Chat Sessions</h2>
-    <button
-      mat-icon-button
-      matTooltip="New Chat"
-      (click)="createNewSession()"
-      [disabled]="loading()"
-      class="new-chat-btn"
-    >
-      <mat-icon>add_circle_outline</mat-icon>
-    </button>
+    <div class="sessions-header-actions">
+      <button
+        mat-icon-button
+        matTooltip="New Chat"
+        (click)="createNewSession()"
+        [disabled]="loading()"
+        class="new-chat-btn"
+      >
+        <mat-icon>add_circle_outline</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        matTooltip="Hide Sessions"
+        (click)="requestHide()"
+        [disabled]="loading()"
+        class="hide-panel-btn"
+        aria-label="Hide sessions panel"
+      >
+        <mat-icon>left_panel_close</mat-icon>
+      </button>
+    </div>
   </div>
 
   <div class="sessions-list" *ngIf="!loading()">
-    <mat-nav-list *ngIf="(sessions | async)?.length; else noSessions">
-      <mat-list-item
+    <div class="sessions-items" *ngIf="(sessions | async)?.length; else noSessions">
+      <div
         *ngFor="let session of sessions | async"
-        [routerLink]="['/chat', session.id]"
-        routerLinkActive="active"
+        [class.active]="(currentSessionId | async) === session.id"
         (click)="selectSession(session.id)"
         class="session-item"
       >
-        <div class="session-content">
-          <div class="session-topic">
-            <mat-icon *ngIf="session.isPinned" class="pin-icon">push_pin</mat-icon>
-            {{ session.topic }}
-          </div>
-          <div class="session-meta">{{ formatDate(session.updatedAtUtc) }} • {{ session.messageCount }} messages</div>
+        <div class="session-content" title="{{ session.topic }}">
+          <mat-icon *ngIf="session.isPinned" class="pin-icon">push_pin</mat-icon>
+          <span class="session-topic">{{ session.topic }}</span>
         </div>
 
         <div class="session-actions" (click)="$event.stopPropagation()">
@@ -64,8 +72,8 @@
             </button>
           </mat-menu>
         </div>
-      </mat-list-item>
-    </mat-nav-list>
+      </div>
+    </div>
 
     <ng-template #noSessions>
       <div class="no-sessions">

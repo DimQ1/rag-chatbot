@@ -17,7 +17,7 @@ public class ChatSessionService(
     IOptions<RagOptions> ragOptions,
     ILogger<ChatSessionService> logger) : IChatSessionService
 {
-    private const string DefaultSessionTopic = "New Chat";
+    private const string DefaultSessionTopicPrefix = "Chat";
     private const int TopicMaxLength = 50;
     private const int TopicTrimLength = 47;
 
@@ -27,11 +27,13 @@ public class ChatSessionService(
 
     public async Task<ChatSession> CreateSessionAsync(Guid userId, CancellationToken cancellationToken = default)
     {
+        var sessionTopic = await GenerateDefaultSessionTopicAsync(userId, cancellationToken);
+
         var session = new ChatSession
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            Topic = DefaultSessionTopic,
+            Topic = sessionTopic,
             IsCustomTopic = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -238,6 +240,16 @@ Respond with ONLY the topic title, no additional text.";
     private static string TruncateTopic(string topic)
     {
         return topic.Length > TopicMaxLength ? topic.Substring(0, TopicTrimLength) + "..." : topic;
+    }
+
+    private async Task<string> GenerateDefaultSessionTopicAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var activeSessionCount = await _dbContext.ChatSessions
+            .AsNoTracking()
+            .WhereActiveByUser(userId)
+            .CountAsync(cancellationToken);
+
+        return $"{DefaultSessionTopicPrefix} {activeSessionCount + 1}";
     }
 
     private Task<ChatSession?> GetActiveSessionByIdAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken)

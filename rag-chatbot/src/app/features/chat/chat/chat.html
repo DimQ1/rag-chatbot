@@ -1,13 +1,22 @@
-<div class="chat-layout">
+<div class="chat-layout" [class.sidebar-collapsed]="!sessionsPanelOpen()">
   <!-- Sidebar with Sessions -->
-  <aside class="sessions-sidebar">
-    <app-sessions-list></app-sessions-list>
+  <aside class="sessions-sidebar" [class.closed]="!sessionsPanelOpen()">
+    <app-sessions-list (hideRequested)="closeSessionsPanel()"></app-sessions-list>
   </aside>
 
   <!-- Main Chat Area -->
   <div class="chat-main">
     <!-- Toolbar -->
     <mat-toolbar class="toolbar">
+      <button
+        mat-icon-button
+        class="sidebar-toggle"
+        (click)="toggleSessionsPanel()"
+        [matTooltip]="sessionsPanelOpen() ? 'Hide sessions' : 'Open sessions'"
+        [attr.aria-label]="sessionsPanelOpen() ? 'Hide sessions panel' : 'Open sessions panel'"
+      >
+        <mat-icon>{{ sessionsPanelOpen() ? 'left_panel_close' : 'left_panel_open' }}</mat-icon>
+      </button>
       <div class="toolbar-brand">
         <mat-icon class="brand-icon">smart_toy</mat-icon>
         <span class="brand-name">RAG Chatbot</span>
