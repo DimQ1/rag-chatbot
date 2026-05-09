@@ -24,6 +24,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRagIndexService, RagIndexService>();
 builder.Services.AddScoped<IRagService, RagService>();
+builder.Services.AddScoped<IChatSessionService, ChatSessionService>();
 
 builder.Services.AddCors(options =>
 {
@@ -78,7 +79,52 @@ using (var scope = app.Services.CreateScope())
         );
         """);
     EnsureEmbeddingModelColumn(dbContext);
+    EnsureSourceDocumentTable(dbContext);
     EnsureVectorDocumentTable(dbContext);
+    
+    // Create ChatSessions and ChatSessionMessages tables
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        CREATE TABLE IF NOT EXISTS ChatSessions (
+            Id TEXT NOT NULL PRIMARY KEY,
+            UserId TEXT NOT NULL,
+            Topic TEXT NOT NULL,
+            IsCustomTopic INTEGER NOT NULL DEFAULT 0,
+            IsPinned INTEGER NOT NULL DEFAULT 0,
+            CreatedAtUtc TEXT NOT NULL,
+            UpdatedAtUtc TEXT NOT NULL,
+            DeletedAtUtc TEXT NULL,
+            FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE
+        );
+        """);
+    
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        CREATE TABLE IF NOT EXISTS ChatSessionMessages (
+            Id TEXT NOT NULL PRIMARY KEY,
+            SessionId TEXT NOT NULL,
+            Role TEXT NOT NULL,
+            Content TEXT NOT NULL,
+            Sources TEXT NULL,
+            CreatedAtUtc TEXT NOT NULL,
+            MessageOrder INTEGER NOT NULL,
+            FOREIGN KEY (SessionId) REFERENCES ChatSessions(Id) ON DELETE CASCADE
+        );
+        """);
+    
+    // Create indexes
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        CREATE INDEX IF NOT EXISTS IX_ChatSessions_UserId_DeletedAtUtc 
+        ON ChatSessions(UserId, DeletedAtUtc);
+        """);
+    
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        CREATE INDEX IF NOT EXISTS IX_ChatSessionMessages_SessionId_MessageOrder 
+        ON ChatSessionMessages(SessionId, MessageOrder);
+        """);
+    
     await EnsureRagConfigurationAsync(dbContext, ragOptions);
     await EnsureAdminUserAsync(dbContext, adminOptions);
 }
@@ -220,4 +266,22 @@ static void EnsureVectorDocumentTable(AppDbContext dbContext)
     {
         // Ignore when the column already exists.
     }
+}
+
+static void EnsureSourceDocumentTable(AppDbContext dbContext)
+{
+    dbContext.Database.ExecuteSqlRaw(
+        """
+        CREATE TABLE IF NOT EXISTS RagSourceDocuments (
+            Id INTEGER NOT NULL CONSTRAINT PK_RagSourceDocuments PRIMARY KEY AUTOINCREMENT,
+            DocumentId TEXT NOT NULL,
+            Title TEXT NOT NULL,
+            OriginalFileName TEXT NOT NULL,
+            Content TEXT NOT NULL,
+            CreatedAtUtc TEXT NOT NULL,
+            SourceUpdatedAtUtc TEXT NOT NULL,
+            UpdatedAtUtc TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS IX_RagSourceDocuments_DocumentId ON RagSourceDocuments (DocumentId);
+        """);
 }

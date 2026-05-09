@@ -1,0 +1,50 @@
+<div class="page-layout">
+  <mat-toolbar class="topbar">
+    <button mat-icon-button routerLink="/chat" aria-label="Back to chat">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>About</span>
+    <span class="spacer"></span>
+    <button mat-stroked-button routerLink="/help">Help</button>
+    <button mat-button (click)="authService.logout()">Sign out</button>
+  </mat-toolbar>
+
+  <div class="content">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>RAG Chatbot</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>
+          This assistant uses retrieval-augmented generation (RAG). It searches the configured knowledge base and
+          answers using the most relevant sources.
+        </p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Core functionality</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <ul>
+          <li>Secure sign-in with email/password and optional Google login.</li>
+          <li>Role-based access for user and admin capabilities.</li>
+          <li>Conversational chat with source citations in every response when available.</li>
+          <li>Question input history support for quickly reusing previous or draft questions.</li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Admin capabilities</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <p>
+          Admin users can manage users, documents, and runtime RAG settings to keep answers accurate and up to date.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

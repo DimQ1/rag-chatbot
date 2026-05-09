@@ -1,0 +1,88 @@
+<div class="sessions-container">
+  <div class="sessions-header">
+    <h2>Chat Sessions</h2>
+    <button
+      mat-icon-button
+      matTooltip="New Chat"
+      (click)="createNewSession()"
+      [disabled]="loading()"
+      class="new-chat-btn"
+    >
+      <mat-icon>add_circle_outline</mat-icon>
+    </button>
+  </div>
+
+  <div class="sessions-list" *ngIf="!loading()">
+    <mat-nav-list *ngIf="(sessions | async)?.length; else noSessions">
+      <mat-list-item
+        *ngFor="let session of sessions | async"
+        [routerLink]="['/chat', session.id]"
+        routerLinkActive="active"
+        (click)="selectSession(session.id)"
+        class="session-item"
+      >
+        <div class="session-content">
+          <div class="session-topic">
+            <mat-icon *ngIf="session.isPinned" class="pin-icon">push_pin</mat-icon>
+            {{ session.topic }}
+          </div>
+          <div class="session-meta">{{ formatDate(session.updatedAtUtc) }} • {{ session.messageCount }} messages</div>
+        </div>
+
+        <div class="session-actions" (click)="$event.stopPropagation()">
+          <button
+            mat-icon-button
+            [matMenuTriggerFor]="menu"
+            class="menu-btn"
+          >
+            <mat-icon>more_vert</mat-icon>
+          </button>
+
+          <mat-menu #menu="matMenu">
+            <button
+              mat-menu-item
+              (click)="togglePin($event, session.id, session.isPinned)"
+            >
+              <mat-icon>{{ session.isPinned ? 'push_pin' : 'pin_outline' }}</mat-icon>
+              <span>{{ session.isPinned ? 'Unpin' : 'Pin' }}</span>
+            </button>
+            <button
+              mat-menu-item
+              (click)="openRenameDialog($event, session)"
+            >
+              <mat-icon>edit</mat-icon>
+              <span>Rename</span>
+            </button>
+            <mat-divider></mat-divider>
+            <button
+              mat-menu-item
+              (click)="deleteSession($event, session.id)"
+              class="delete-btn"
+            >
+              <mat-icon color="warn">delete</mat-icon>
+              <span>Delete</span>
+            </button>
+          </mat-menu>
+        </div>
+      </mat-list-item>
+    </mat-nav-list>
+
+    <ng-template #noSessions>
+      <div class="no-sessions">
+        <mat-icon>chat_bubble_outline</mat-icon>
+        <p>No chat sessions yet</p>
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="createNewSession()"
+        >
+          Start New Chat
+        </button>
+      </div>
+    </ng-template>
+  </div>
+
+  <div class="loading" *ngIf="loading()">
+    <mat-spinner diameter="30"></mat-spinner>
+  </div>
+</div>

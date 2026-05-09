@@ -11,9 +11,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { RagService } from '../../../core/services/rag';
 import { ChatService, ChatMessage } from '../../../core/services/chat';
 import { AuthService } from '../../../core/services/auth';
+import { SessionsListComponent } from '../sessions-list/sessions-list';
 
 @Component({
   selector: 'app-chat',
@@ -30,7 +32,9 @@ import { AuthService } from '../../../core/services/auth';
     MatProgressSpinnerModule,
     MatToolbarModule,
     MatTooltipModule,
+    MatMenuModule,
     RouterLink,
+    SessionsListComponent,
   ],
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
@@ -43,12 +47,17 @@ export class Chat implements AfterViewChecked {
   @ViewChild('messagesEnd') private messagesEnd!: ElementRef;
 
   readonly messages$ = this.chatService.messages;
+  readonly currentSessionId = this.chatService.currentSessionId;
   readonly inputControl = new FormControl('', [
     Validators.required,
     Validators.maxLength(2000),
   ]);
 
   thinking = signal(false);
+
+  private readonly questionHistory: string[] = [];
+  private historyPosition = -1;
+  private pendingDraft = '';
 
   get userInitial(): string {
     const name = this.authService.currentUser?.name ?? '';
@@ -63,6 +72,18 @@ export class Chat implements AfterViewChecked {
     return this.authService.isAdmin();
   }
 
+  createNewChat(): void {
+    this.chatService.createSession().subscribe({
+      next: (session) => {
+        this.chatService.setCurrentSession(session.id);
+        this.chatService.clearMessages();
+      },
+      error: (err) => {
+        console.error('Failed to create session:', err);
+      },
+    });
+  }
+
   clearChat(): void {
     this.chatService.clearMessages();
   }
@@ -75,26 +96,66 @@ export class Chat implements AfterViewChecked {
     const question = this.inputControl.value?.trim();
     if (!question || this.inputControl.invalid || this.thinking()) return;
 
+    const sessionId = this.chatService.currentSessionId$Value;
+    if (!sessionId) {
+      // Create a new session if one doesn't exist
+      this.chatService.createSession(question).subscribe({
+        next: (session) => {
+          this.chatService.setCurrentSession(session.id);
+          this.sendMessage(session.id, question);
+        },
+        error: (err) => {
+          console.error('Failed to create session:', err);
+        },
+      });
+    } else {
+      this.sendMessage(sessionId, question);
+    }
+  }
+
+  private sendMessage(sessionId: string, question: string): void {
+    this.addToHistory(question);
+    this.resetHistoryNavigation();
+
     this.chatService.addMessage('user', question);
     this.inputControl.reset();
     this.thinking.set(true);
 
-    this.ragService.query(question).subscribe({
-      next: (res) => {
-        this.chatService.addMessage('assistant', res.answer, res.sources);
+    this.chatService.addMessageToSession(sessionId, question).subscribe({
+      next: () => {
+        // Reload the session to get the updated messages
+        this.chatService.loadSessionDetail(sessionId);
         this.thinking.set(false);
       },
-      error: () => {
+      error: (err) => {
+        console.error('Failed to send message:', err);
         this.chatService.addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
         this.thinking.set(false);
       },
     });
   }
 
-  onEnter(event: KeyboardEvent): void {
+  onInputKeydown(event: KeyboardEvent): void {
+    if (event.key === 'ArrowUp' && this.isCursorAtStart(event)) {
+      event.preventDefault();
+      this.navigateHistoryUp();
+      return;
+    }
+
+    if (event.key === 'ArrowDown' && this.isCursorAtEnd(event)) {
+      event.preventDefault();
+      this.navigateHistoryDown();
+      return;
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       this.send();
+      return;
+    }
+
+    if (this.historyPosition !== -1) {
+      this.resetHistoryNavigation();
     }
   }
 
@@ -106,5 +167,67 @@ export class Chat implements AfterViewChecked {
     try {
       this.messagesEnd?.nativeElement.scrollIntoView({ behavior: 'smooth' });
     } catch {}
+  }
+
+  private navigateHistoryUp(): void {
+    this.addCurrentDraftToHistory();
+    if (this.questionHistory.length === 0) return;
+
+    if (this.historyPosition === -1) {
+      this.pendingDraft = this.inputControl.value ?? '';
+    }
+
+    this.historyPosition = Math.min(this.historyPosition + 1, this.questionHistory.length - 1);
+    this.restoreHistoryEntry(this.historyPosition);
+  }
+
+  private navigateHistoryDown(): void {
+    if (this.historyPosition === -1) return;
+
+    this.historyPosition -= 1;
+    if (this.historyPosition === -1) {
+      this.inputControl.setValue(this.pendingDraft);
+      return;
+    }
+
+    this.restoreHistoryEntry(this.historyPosition);
+  }
+
+  private restoreHistoryEntry(position: number): void {
+    const reverseIndex = this.questionHistory.length - 1 - position;
+    this.inputControl.setValue(this.questionHistory[reverseIndex]);
+  }
+
+  private addCurrentDraftToHistory(): void {
+    const currentDraft = this.inputControl.value?.trim();
+    if (!currentDraft) return;
+    this.addToHistory(currentDraft);
+  }
+
+  private addToHistory(value: string): void {
+    if (this.questionHistory[this.questionHistory.length - 1] === value) {
+      return;
+    }
+
+    this.questionHistory.push(value);
+  }
+
+  private resetHistoryNavigation(): void {
+    this.historyPosition = -1;
+    this.pendingDraft = '';
+  }
+
+  private isCursorAtStart(event: KeyboardEvent): boolean {
+    const target = event.target as HTMLTextAreaElement | null;
+    if (!target) return false;
+    return target.selectionStart === 0 && target.selectionEnd === 0;
+  }
+
+  private isCursorAtEnd(event: KeyboardEvent): boolean {
+    const target = event.target as HTMLTextAreaElement | null;
+    if (!target) return false;
+
+    const length = target.value.length;
+    return target.selectionStart === length && target.selectionEnd === length;
   }
 }

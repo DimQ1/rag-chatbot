@@ -25,7 +25,8 @@ public class RagIndexService(
 
     public async Task<(int ProcessedCount, int RemovedCount)> ReprocessAllAsync(CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(_knowledgeBasePath);
+        await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
+
         var configuration = await ResolveConfigurationAsync(cancellationToken);
         var kernel = KernelFactory.CreateKernel(configuration, out _);
 
@@ -34,11 +35,14 @@ public class RagIndexService(
         var processed = 0;
         var activeDocumentIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var filePath in Directory.EnumerateFiles(_knowledgeBasePath, "*.md", SearchOption.TopDirectoryOnly))
+        var sourceDocuments = await _dbContext.RagSourceDocuments
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        foreach (var sourceDocument in sourceDocuments)
         {
-            var documentId = Path.GetFileNameWithoutExtension(filePath);
-            activeDocumentIds.Add(documentId);
-            var updated = await UpsertFromFileAsync(documentId, configuration, kernel, forceReindex: true, cancellationToken);
+            activeDocumentIds.Add(sourceDocument.DocumentId);
+            var updated = await UpsertFromSourceAsync(sourceDocument, configuration, kernel, forceReindex: true, cancellationToken);
             if (updated)
             {
                 processed++;
@@ -81,9 +85,20 @@ public class RagIndexService(
             return false;
         }
 
+        await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
+
         var configuration = await ResolveConfigurationAsync(cancellationToken);
         var kernel = KernelFactory.CreateKernel(configuration, out _);
-        return await UpsertFromFileAsync(normalizedId, configuration, kernel, forceReindex: false, cancellationToken);
+        var sourceDocument = await _dbContext.RagSourceDocuments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(document => document.DocumentId == normalizedId, cancellationToken);
+
+        if (sourceDocument is null)
+        {
+            return false;
+        }
+
+        return await UpsertFromSourceAsync(sourceDocument, configuration, kernel, forceReindex: false, cancellationToken);
     }
 
     public async Task RemoveDocumentAsync(string documentId, CancellationToken cancellationToken = default)
@@ -111,29 +126,27 @@ public class RagIndexService(
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<bool> UpsertFromFileAsync(
-        string documentId,
+    private async Task<bool> UpsertFromSourceAsync(
+        RagSourceDocument sourceDocument,
         RagRuntimeConfiguration configuration,
         Kernel kernel,
         bool forceReindex,
         CancellationToken cancellationToken)
     {
-        var filePath = Path.Combine(_knowledgeBasePath, $"{documentId}.md");
-        if (!File.Exists(filePath))
-        {
-            return false;
-        }
-
-        var content = await File.ReadAllTextAsync(filePath, cancellationToken);
+        var documentId = sourceDocument.DocumentId;
+        var content = sourceDocument.Content;
         if (string.IsNullOrWhiteSpace(content))
         {
             return false;
         }
 
         var contentHash = ComputeHash(content);
-        var title = GetTitle(content, documentId);
-        var sourceUpdatedAtUtc = File.GetLastWriteTimeUtc(filePath);
-        var url = $"local://knowledge/{Path.GetFileName(filePath)}";
+        var title = sourceDocument.Title;
+        var sourceUpdatedAtUtc = sourceDocument.SourceUpdatedAtUtc;
+        var sourceFileName = string.IsNullOrWhiteSpace(sourceDocument.OriginalFileName)
+            ? $"{documentId}.md"
+            : sourceDocument.OriginalFileName;
+        var url = $"local://knowledge/{sourceFileName}";
 
         var existing = await _dbContext.RagVectorDocuments
             .FirstOrDefaultAsync(document => document.DocumentId == documentId, cancellationToken);
@@ -241,6 +254,69 @@ public class RagIndexService(
         }
 
         return fallback;
+    }
+
+    private async Task ImportLegacyKnowledgeBaseFilesAsync(CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_knowledgeBasePath);
+
+        var hasChanges = false;
+        foreach (var filePath in Directory.EnumerateFiles(_knowledgeBasePath, "*.md", SearchOption.TopDirectoryOnly))
+        {
+            var documentId = NormalizeDocumentId(Path.GetFileNameWithoutExtension(filePath));
+            if (string.IsNullOrWhiteSpace(documentId))
+            {
+                continue;
+            }
+
+            var content = await File.ReadAllTextAsync(filePath, cancellationToken);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            var sourceUpdatedAtUtc = File.GetLastWriteTimeUtc(filePath);
+            var title = GetTitle(content, Path.GetFileNameWithoutExtension(filePath));
+            var fileName = Path.GetFileName(filePath);
+
+            var existing = await _dbContext.RagSourceDocuments
+                .FirstOrDefaultAsync(document => document.DocumentId == documentId, cancellationToken);
+
+            if (existing is null)
+            {
+                _dbContext.RagSourceDocuments.Add(new RagSourceDocument
+                {
+                    DocumentId = documentId,
+                    Title = title,
+                    OriginalFileName = fileName,
+                    Content = content,
+                    CreatedAtUtc = sourceUpdatedAtUtc,
+                    SourceUpdatedAtUtc = sourceUpdatedAtUtc,
+                    UpdatedAtUtc = sourceUpdatedAtUtc
+                });
+
+                hasChanges = true;
+                continue;
+            }
+
+            if (existing.SourceUpdatedAtUtc >= sourceUpdatedAtUtc
+                && string.Equals(existing.Content, content, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            existing.Title = title;
+            existing.OriginalFileName = fileName;
+            existing.Content = content;
+            existing.SourceUpdatedAtUtc = sourceUpdatedAtUtc;
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static string ComputeHash(string value)

@@ -1,0 +1,35 @@
+.page-layout {
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.topbar {
+  background: #ffffff;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.content {
+  max-width: 840px;
+  margin: 24px auto;
+  display: grid;
+  gap: 16px;
+  padding: 0 16px 24px;
+}
+
+p {
+  margin: 0;
+  color: #424242;
+  line-height: 1.6;
+}
+
+ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  color: #424242;
+}

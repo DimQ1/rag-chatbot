@@ -78,6 +78,8 @@
 
           <mat-tab label="RAG Document Management">
             <div class="tab-panel docs-panel">
+              <input #documentFileInput type="file" accept=".txt,.md,text/plain,text/markdown" class="hidden-file-input" (change)="onTextFileSelected($event)" />
+
               @if (documentMessage()) {
                 <p class="success">{{ documentMessage() }}</p>
               }
@@ -87,7 +89,7 @@
               } @else {
                 <div class="docs-layout">
                   <div class="docs-sidebar">
-                    <button mat-raised-button color="primary" class="new-doc-button" (click)="startNewDocument()">
+                    <button mat-raised-button color="primary" class="new-doc-button" (click)="requestNewDocument(documentFileInput)">
                       New document
                     </button>
 

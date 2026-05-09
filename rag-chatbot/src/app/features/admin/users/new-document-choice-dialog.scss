@@ -1,0 +1,37 @@
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+
+  mat-icon {
+    color: #1459a6;
+  }
+}
+
+.dialog-content {
+  padding-top: 2px;
+}
+
+.dialog-intro {
+  margin: 0;
+  font-weight: 600;
+  color: #1f3348;
+}
+
+.dialog-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5e7185;
+}
+
+.dialog-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+}
+
+.cancel-button {
+  margin-left: auto;
+}

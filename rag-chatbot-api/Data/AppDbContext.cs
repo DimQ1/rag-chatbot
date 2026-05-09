@@ -7,7 +7,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 {
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<RagRuntimeConfiguration> RagRuntimeConfigurations => Set<RagRuntimeConfiguration>();
+    public DbSet<RagSourceDocument> RagSourceDocuments => Set<RagSourceDocument>();
     public DbSet<RagVectorDocument> RagVectorDocuments => Set<RagVectorDocument>();
+    public DbSet<ChatSession> ChatSessions => Set<ChatSession>();
+    public DbSet<ChatSessionMessage> ChatSessionMessages => Set<ChatSessionMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,6 +38,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .Property(c => c.EmbeddingModelId)
             .HasMaxLength(128);
 
+        modelBuilder.Entity<RagSourceDocument>()
+            .HasIndex(d => d.DocumentId)
+            .IsUnique();
+
+        modelBuilder.Entity<RagSourceDocument>()
+            .Property(d => d.DocumentId)
+            .HasMaxLength(200);
+
+        modelBuilder.Entity<RagSourceDocument>()
+            .Property(d => d.Title)
+            .HasMaxLength(400);
+
+        modelBuilder.Entity<RagSourceDocument>()
+            .Property(d => d.OriginalFileName)
+            .HasMaxLength(260);
+
         modelBuilder.Entity<RagVectorDocument>()
             .HasIndex(d => d.DocumentId)
             .IsUnique();
@@ -58,5 +77,45 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<RagVectorDocument>()
             .Property(d => d.EmbeddingModelId)
             .HasMaxLength(128);
+
+        // ChatSession configurations
+        modelBuilder.Entity<ChatSession>()
+            .HasKey(s => s.Id);
+
+        modelBuilder.Entity<ChatSession>()
+            .HasIndex(s => new { s.UserId, s.DeletedAtUtc });
+
+        modelBuilder.Entity<ChatSession>()
+            .Property(s => s.Topic)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        modelBuilder.Entity<ChatSession>()
+            .HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ChatSession>()
+            .HasMany(s => s.Messages)
+            .WithOne(m => m.Session)
+            .HasForeignKey(m => m.SessionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ChatSessionMessage configurations
+        modelBuilder.Entity<ChatSessionMessage>()
+            .HasKey(m => m.Id);
+
+        modelBuilder.Entity<ChatSessionMessage>()
+            .HasIndex(m => new { m.SessionId, m.MessageOrder });
+
+        modelBuilder.Entity<ChatSessionMessage>()
+            .Property(m => m.Role)
+            .HasMaxLength(20)
+            .IsRequired();
+
+        modelBuilder.Entity<ChatSessionMessage>()
+            .Property(m => m.Content)
+            .IsRequired();
     }
 }

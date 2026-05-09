@@ -1,0 +1,41 @@
+<div class="page-layout">
+  <mat-toolbar class="topbar">
+    <button mat-icon-button routerLink="/chat" aria-label="Back to chat">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>Help</span>
+    <span class="spacer"></span>
+    <button mat-stroked-button routerLink="/about">About</button>
+    <button mat-button (click)="authService.logout()">Sign out</button>
+  </mat-toolbar>
+
+  <div class="content">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>How to use the chatbot</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <ul>
+          <li>Type your question in the message box and press Enter to send.</li>
+          <li>Use Shift+Enter to add a new line in the message box.</li>
+          <li>Use Up/Down arrows to browse previous and unsent draft questions.</li>
+          <li>Open source links under answers to check supporting documents.</li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Account and navigation</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <ul>
+          <li>Use the account icon in the chat toolbar to update your profile and password.</li>
+          <li>Use New chat to clear current conversation messages.</li>
+          <li>Admin users can open the Admin panel from the toolbar.</li>
+          <li>Use the Help menu in chat to open this page or About details.</li>
+        </ul>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

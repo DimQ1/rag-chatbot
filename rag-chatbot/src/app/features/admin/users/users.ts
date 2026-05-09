@@ -11,7 +11,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { AdminDocument, AdminRagConfiguration, AdminService, AdminUser } from '../../../core/services/admin/admin';
+import { NewDocumentChoice, NewDocumentChoiceDialog } from './new-document-choice-dialog';
 
 @Component({
   selector: 'app-admin-users',
@@ -29,6 +31,7 @@ import { AdminDocument, AdminRagConfiguration, AdminService, AdminUser } from '.
     MatSelectModule,
     MatProgressSpinnerModule,
     MatTabsModule,
+    MatDialogModule,
   ],
   templateUrl: './users.html',
   styleUrl: './users.scss',
@@ -36,6 +39,7 @@ import { AdminDocument, AdminRagConfiguration, AdminService, AdminUser } from '.
 export class AdminUsers implements OnInit {
   private readonly adminService = inject(AdminService);
   private readonly fb = inject(FormBuilder);
+  private readonly dialog = inject(MatDialog);
 
   readonly loading = signal(false);
   readonly savingId = signal<string | null>(null);
@@ -213,6 +217,62 @@ export class AdminUsers implements OnInit {
     });
   }
 
+  requestNewDocument(fileInput: HTMLInputElement): void {
+    const dialogRef = this.dialog.open(NewDocumentChoiceDialog, {
+      width: '420px',
+      maxWidth: '95vw',
+      disableClose: false,
+      autoFocus: false,
+    });
+
+    dialogRef.afterClosed().subscribe((choice: NewDocumentChoice | undefined) => {
+      if (choice === 'form') {
+        this.createDocumentFromForm();
+        return;
+      }
+
+      if (choice === 'file') {
+        this.triggerTextFilePicker(fileInput);
+      }
+    });
+  }
+
+  createDocumentFromForm(): void {
+    this.activeDocumentId = null;
+    this.documentMessage.set('Ready to create a new document manually.');
+    this.documentForm.reset({
+      title: '',
+      content: '',
+    });
+  }
+
+  triggerTextFilePicker(fileInput: HTMLInputElement): void {
+    fileInput.value = '';
+    fileInput.click();
+  }
+
+  async onTextFileSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const rawText = await file.text();
+      const analyzed = this.analyzeUploadedDocument(file.name, rawText);
+
+      this.activeDocumentId = null;
+      this.documentForm.reset({
+        title: analyzed.title,
+        content: analyzed.content,
+      });
+      this.documentMessage.set('Text file imported. Review and save the new document.');
+    } catch {
+      this.errorMessage.set('Failed to load the selected file.');
+    }
+  }
+
   saveDocument(): void {
     if (this.documentForm.invalid) {
       this.documentForm.markAllAsTouched();
@@ -324,6 +384,87 @@ export class AdminUsers implements OnInit {
         this.errorMessage.set(err?.error?.message ?? 'Failed to reprocess document.');
       },
     });
+  }
+
+  private analyzeUploadedDocument(fileName: string, rawText: string): { title: string; content: string } {
+    const normalizedText = rawText.replace(/\r\n/g, '\n').trim();
+    const fallbackTitle = this.createTitleFromFileName(fileName);
+
+    if (!normalizedText) {
+      return {
+        title: fallbackTitle,
+        content: `# ${fallbackTitle}\n\n`,
+      };
+    }
+
+    const lines = normalizedText.split('\n');
+    const headingLine = lines.find((line) => line.trim().startsWith('# '));
+    if (headingLine) {
+      const detectedTitle = headingLine.trim().replace(/^#\s+/, '').trim();
+      const safeTitle = detectedTitle || fallbackTitle;
+      const withTitleHeading = this.ensureMarkdownTitle(safeTitle, normalizedText);
+      return {
+        title: safeTitle,
+        content: withTitleHeading,
+      };
+    }
+
+    const firstContentLine = lines.find((line) => line.trim().length > 0) ?? '';
+    const inferredTitle = this.inferTitle(firstContentLine, fallbackTitle);
+    return {
+      title: inferredTitle,
+      content: this.ensureMarkdownTitle(inferredTitle, normalizedText),
+    };
+  }
+
+  private createTitleFromFileName(fileName: string): string {
+    const withoutExtension = fileName.replace(/\.[^/.]+$/, '');
+    const words = withoutExtension
+      .replace(/[_-]+/g, ' ')
+      .trim();
+
+    if (!words) {
+      return 'New Document';
+    }
+
+    return words
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+      .trim();
+  }
+
+  private inferTitle(candidateLine: string, fallbackTitle: string): string {
+    const normalized = candidateLine
+      .replace(/^\d+[.)]\s+/, '')
+      .replace(/[\t]+/g, ' ')
+      .trim();
+
+    if (!normalized) {
+      return fallbackTitle;
+    }
+
+    const shortEnough = normalized.length <= 80;
+    const sentenceLike = /[.!?]$/.test(normalized);
+
+    if (shortEnough && !sentenceLike) {
+      return normalized;
+    }
+
+    return fallbackTitle;
+  }
+
+  private ensureMarkdownTitle(title: string, content: string): string {
+    const trimmed = content.trim();
+    const heading = `# ${title.trim()}`;
+
+    if (trimmed.startsWith('# ')) {
+      const lines = trimmed.split('\n');
+      lines[0] = heading;
+      return `${lines.join('\n').trim()}\n`;
+    }
+
+    return `${heading}\n\n${trimmed}\n`;
   }
 
   saveRagConfiguration(): void {

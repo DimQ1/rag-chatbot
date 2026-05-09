@@ -93,91 +93,118 @@ public class AdminController(
     }
 
     [HttpGet("documents")]
-    public ActionResult<IReadOnlyList<AdminDocumentResponse>> GetDocuments()
+    public async Task<ActionResult<IReadOnlyList<AdminDocumentResponse>>> GetDocuments(CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_knowledgeBasePath);
+        await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
 
-        var documents = Directory
-            .EnumerateFiles(_knowledgeBasePath, "*.md", SearchOption.TopDirectoryOnly)
-            .Select(filePath =>
-            {
-                var content = System.IO.File.ReadAllText(filePath);
-                return new AdminDocumentResponse
-                {
-                    Id = Path.GetFileNameWithoutExtension(filePath),
-                    FileName = Path.GetFileName(filePath),
-                    Title = GetDocumentTitle(content, Path.GetFileNameWithoutExtension(filePath)),
-                    Content = content,
-                    UpdatedAtUtc = System.IO.File.GetLastWriteTimeUtc(filePath)
-                };
-            })
+        var documents = await _dbContext.RagSourceDocuments
+            .AsNoTracking()
             .OrderByDescending(document => document.UpdatedAtUtc)
-            .ToList();
+            .Select(document => new AdminDocumentResponse
+            {
+                Id = document.DocumentId,
+                FileName = string.IsNullOrWhiteSpace(document.OriginalFileName) ? $"{document.DocumentId}.md" : document.OriginalFileName,
+                Title = document.Title,
+                Content = document.Content,
+                UpdatedAtUtc = document.UpdatedAtUtc
+            })
+            .ToListAsync(cancellationToken);
 
         return Ok(documents);
     }
 
     [HttpPost("documents")]
-    public ActionResult<AdminDocumentResponse> CreateDocument(AdminUpsertDocumentRequest request)
+    public async Task<ActionResult<AdminDocumentResponse>> CreateDocument(AdminUpsertDocumentRequest request, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_knowledgeBasePath);
-
+        await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
         var id = Slugify(request.Title);
-        var filePath = Path.Combine(_knowledgeBasePath, $"{id}.md");
-        if (System.IO.File.Exists(filePath))
+        var exists = await _dbContext.RagSourceDocuments
+            .AnyAsync(document => document.DocumentId == id, cancellationToken);
+        if (exists)
         {
             return Conflict(new { message = "A document with a similar title already exists." });
         }
 
         var content = EnsureTitleHeading(request.Title, request.Content);
-        System.IO.File.WriteAllText(filePath, content);
+        var now = DateTime.UtcNow;
+
+        var sourceDocument = new Models.RagSourceDocument
+        {
+            DocumentId = id,
+            Title = request.Title.Trim(),
+            OriginalFileName = $"{id}.md",
+            Content = content,
+            CreatedAtUtc = now,
+            SourceUpdatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
+
+        _dbContext.RagSourceDocuments.Add(sourceDocument);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        WriteKnowledgeBaseFile(sourceDocument.DocumentId, sourceDocument.Content);
         _ = _ragIndexService.ReprocessDocumentAsync(id);
 
-        return Ok(ToDocumentResponse(filePath, content));
+        return Ok(ToDocumentResponse(sourceDocument));
     }
 
     [HttpPut("documents/{id}")]
-    public ActionResult<AdminDocumentResponse> UpdateDocument(string id, AdminUpsertDocumentRequest request)
+    public async Task<ActionResult<AdminDocumentResponse>> UpdateDocument(string id, AdminUpsertDocumentRequest request, CancellationToken cancellationToken)
     {
         var normalizedId = Slugify(id);
-        var existingPath = Path.Combine(_knowledgeBasePath, $"{normalizedId}.md");
-        if (!System.IO.File.Exists(existingPath))
+        var sourceDocument = await _dbContext.RagSourceDocuments
+            .FirstOrDefaultAsync(document => document.DocumentId == normalizedId, cancellationToken);
+        if (sourceDocument is null)
         {
             return NotFound(new { message = "Document not found." });
         }
 
         var nextId = Slugify(request.Title);
-        var nextPath = Path.Combine(_knowledgeBasePath, $"{nextId}.md");
         var content = EnsureTitleHeading(request.Title, request.Content);
 
-        if (!string.Equals(existingPath, nextPath, StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(nextPath))
+        if (!string.Equals(normalizedId, nextId, StringComparison.Ordinal)
+            && await _dbContext.RagSourceDocuments.AnyAsync(document => document.DocumentId == nextId, cancellationToken))
         {
             return Conflict(new { message = "Another document already uses that title." });
         }
 
-        if (!string.Equals(existingPath, nextPath, StringComparison.OrdinalIgnoreCase))
+        var previousId = sourceDocument.DocumentId;
+        sourceDocument.DocumentId = nextId;
+        sourceDocument.Title = request.Title.Trim();
+        sourceDocument.OriginalFileName = $"{nextId}.md";
+        sourceDocument.Content = content;
+        sourceDocument.SourceUpdatedAtUtc = DateTime.UtcNow;
+        sourceDocument.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        if (!string.Equals(previousId, nextId, StringComparison.Ordinal))
         {
-            System.IO.File.Move(existingPath, nextPath);
-            _ = _ragIndexService.RemoveDocumentAsync(normalizedId);
+            DeleteKnowledgeBaseFile(previousId);
+            _ = _ragIndexService.RemoveDocumentAsync(previousId);
         }
 
-        System.IO.File.WriteAllText(nextPath, content);
+        WriteKnowledgeBaseFile(nextId, content);
         _ = _ragIndexService.ReprocessDocumentAsync(nextId);
 
-        return Ok(ToDocumentResponse(nextPath, content));
+        return Ok(ToDocumentResponse(sourceDocument));
     }
 
     [HttpDelete("documents/{id}")]
-    public ActionResult<object> DeleteDocument(string id)
+    public async Task<ActionResult<object>> DeleteDocument(string id, CancellationToken cancellationToken)
     {
         var normalizedId = Slugify(id);
-        var filePath = Path.Combine(_knowledgeBasePath, $"{normalizedId}.md");
-        if (!System.IO.File.Exists(filePath))
+        var sourceDocument = await _dbContext.RagSourceDocuments
+            .FirstOrDefaultAsync(document => document.DocumentId == normalizedId, cancellationToken);
+        if (sourceDocument is null)
         {
             return NotFound(new { message = "Document not found." });
         }
 
-        System.IO.File.Delete(filePath);
+        _dbContext.RagSourceDocuments.Remove(sourceDocument);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        DeleteKnowledgeBaseFile(normalizedId);
         _ = _ragIndexService.RemoveDocumentAsync(normalizedId);
         return Ok(new { message = "Document deleted." });
     }
@@ -199,7 +226,8 @@ public class AdminController(
     public async Task<ActionResult<object>> ReprocessDocument(string id, CancellationToken cancellationToken)
     {
         var normalizedId = Slugify(id);
-        var exists = System.IO.File.Exists(Path.Combine(_knowledgeBasePath, $"{normalizedId}.md"));
+        var exists = await _dbContext.RagSourceDocuments
+            .AnyAsync(document => document.DocumentId == normalizedId, cancellationToken);
         if (!exists)
         {
             return NotFound(new { message = "Document not found." });
@@ -247,16 +275,90 @@ public class AdminController(
         return Ok(ToRagConfigurationResponse(configuration));
     }
 
-    private static AdminDocumentResponse ToDocumentResponse(string filePath, string content)
+    private async Task ImportLegacyKnowledgeBaseFilesAsync(CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(_knowledgeBasePath);
+
+        var hasChanges = false;
+        foreach (var filePath in Directory.EnumerateFiles(_knowledgeBasePath, "*.md", SearchOption.TopDirectoryOnly))
+        {
+            var documentId = Slugify(Path.GetFileNameWithoutExtension(filePath));
+            var content = await System.IO.File.ReadAllTextAsync(filePath, cancellationToken);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            var fileUpdatedAt = System.IO.File.GetLastWriteTimeUtc(filePath);
+            var title = GetDocumentTitle(content, Path.GetFileNameWithoutExtension(filePath));
+
+            var existing = await _dbContext.RagSourceDocuments
+                .FirstOrDefaultAsync(document => document.DocumentId == documentId, cancellationToken);
+
+            if (existing is null)
+            {
+                _dbContext.RagSourceDocuments.Add(new Models.RagSourceDocument
+                {
+                    DocumentId = documentId,
+                    Title = title,
+                    OriginalFileName = Path.GetFileName(filePath),
+                    Content = content,
+                    CreatedAtUtc = fileUpdatedAt,
+                    SourceUpdatedAtUtc = fileUpdatedAt,
+                    UpdatedAtUtc = fileUpdatedAt
+                });
+
+                hasChanges = true;
+                continue;
+            }
+
+            if (existing.SourceUpdatedAtUtc >= fileUpdatedAt && string.Equals(existing.Content, content, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            existing.Title = title;
+            existing.OriginalFileName = Path.GetFileName(filePath);
+            existing.Content = content;
+            existing.SourceUpdatedAtUtc = fileUpdatedAt;
+            existing.UpdatedAtUtc = DateTime.UtcNow;
+            hasChanges = true;
+        }
+
+        if (hasChanges)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static AdminDocumentResponse ToDocumentResponse(Models.RagSourceDocument sourceDocument)
     {
         return new AdminDocumentResponse
         {
-            Id = Path.GetFileNameWithoutExtension(filePath),
-            FileName = Path.GetFileName(filePath),
-            Title = GetDocumentTitle(content, Path.GetFileNameWithoutExtension(filePath)),
-            Content = content,
-            UpdatedAtUtc = System.IO.File.GetLastWriteTimeUtc(filePath)
+            Id = sourceDocument.DocumentId,
+            FileName = string.IsNullOrWhiteSpace(sourceDocument.OriginalFileName)
+                ? $"{sourceDocument.DocumentId}.md"
+                : sourceDocument.OriginalFileName,
+            Title = sourceDocument.Title,
+            Content = sourceDocument.Content,
+            UpdatedAtUtc = sourceDocument.UpdatedAtUtc
         };
+    }
+
+    private void WriteKnowledgeBaseFile(string documentId, string content)
+    {
+        Directory.CreateDirectory(_knowledgeBasePath);
+        var filePath = Path.Combine(_knowledgeBasePath, $"{documentId}.md");
+        System.IO.File.WriteAllText(filePath, content);
+    }
+
+    private void DeleteKnowledgeBaseFile(string documentId)
+    {
+        var filePath = Path.Combine(_knowledgeBasePath, $"{documentId}.md");
+        if (System.IO.File.Exists(filePath))
+        {
+            System.IO.File.Delete(filePath);
+        }
     }
 
     private static string EnsureTitleHeading(string title, string content)
