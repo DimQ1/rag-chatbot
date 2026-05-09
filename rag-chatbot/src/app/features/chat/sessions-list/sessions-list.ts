@@ -36,6 +36,7 @@ export class SessionsListComponent implements OnInit {
 
   readonly sessions = this.chatService.sessions;
   readonly currentSessionId = this.chatService.currentSessionId;
+  readonly currentThinkingSessionId = this.chatService.currentThinkingSessionId;
   readonly loading = signal(false);
 
   ngOnInit(): void {

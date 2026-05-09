@@ -75,7 +75,7 @@
     <!-- Messages -->
     <div class="messages-container">
 
-      @if ((messages$ | async)?.length === 0 && !thinking()) {
+      @if ((messages$ | async)?.length === 0 && !isCurrentSessionThinking()) {
         <div class="empty-state">
           <mat-icon class="empty-icon">forum</mat-icon>
           <h2>How can I help you today?</h2>
@@ -100,7 +100,7 @@
                   <mat-icon class="sources-icon">link</mat-icon>Sources
                 </span>
                 @for (source of msg.sources; track source.url) {
-                  <a [href]="source.url" target="_blank" rel="noopener noreferrer" class="source-link">{{ source.title }}</a>
+                  <a [href]="resolveSourceUrl(source.url)" target="_blank" rel="noopener noreferrer" class="source-link">{{ source.title }}</a>
                 }
               </div>
             }
@@ -114,7 +114,7 @@
         </div>
       }
 
-      @if (thinking()) {
+      @if (isCurrentSessionThinking()) {
         <div class="message assistant">
           <div class="avatar avatar-bot">
             <mat-icon>smart_toy</mat-icon>
@@ -156,7 +156,7 @@
       mat-fab
       class="send-btn"
       (click)="send()"
-      [disabled]="inputControl.invalid || thinking()"
+      [disabled]="inputControl.invalid || isCurrentSessionThinking()"
       aria-label="Send message"
       matTooltip="Send"
     >

@@ -49,18 +49,28 @@ export class ChatService {
   private readonly messages$ = new BehaviorSubject<ChatMessage[]>([]);
   private readonly sessions$ = new BehaviorSubject<ChatSession[]>([]);
   private readonly currentSessionId$ = new BehaviorSubject<string | null>(null);
+  private readonly currentThinkingSessionId$ = new BehaviorSubject<string | null>(null);
 
   readonly messages = this.messages$.asObservable();
   readonly sessions = this.sessions$.asObservable();
   readonly currentSessionId = this.currentSessionId$.asObservable();
+  readonly currentThinkingSessionId = this.currentThinkingSessionId$.asObservable();
 
   // Get current values
   get currentSessionId$Value(): string | null {
     return this.currentSessionId$.value;
   }
 
+  get currentThinkingSessionId$Value(): string | null {
+    return this.currentThinkingSessionId$.value;
+  }
+
   get messagesList(): ChatMessage[] {
     return this.messages$.value;
+  }
+
+  get sessionsList(): ChatSession[] {
+    return this.sessions$.value;
   }
 
   addMessage(role: MessageRole, content: string, sources?: { title: string; url: string }[]): void {
@@ -94,6 +104,24 @@ export class ChatService {
     this.getSessions().subscribe({
       next: (sessions) => {
         this.sessions$.next(sessions);
+
+        const currentSessionId = this.currentSessionId$.value;
+        if (!currentSessionId) {
+          if (sessions.length > 0) {
+            this.loadSessionDetail(sessions[0].id);
+          }
+
+          return;
+        }
+
+        const currentSessionStillExists = sessions.some((session) => session.id === currentSessionId);
+        if (!currentSessionStillExists) {
+          if (sessions.length > 0) {
+            this.loadSessionDetail(sessions[0].id);
+          } else {
+            this.setCurrentSession(null);
+          }
+        }
       },
       error: (err) => {
         console.error('Failed to load sessions:', err);
@@ -105,10 +133,15 @@ export class ChatService {
     return this.http.get<ChatSessionDetail>(`${this.apiUrl}/${sessionId}`);
   }
 
-  loadSessionDetail(sessionId: string): void {
+  loadSessionDetail(sessionId: string, options?: { setAsCurrent?: boolean }): void {
+    const setAsCurrent = options?.setAsCurrent ?? true;
+
     this.getSessionDetail(sessionId).subscribe({
       next: (session) => {
-        this.currentSessionId$.next(sessionId);
+        if (setAsCurrent) {
+          this.currentSessionId$.next(sessionId);
+        }
+
         const messages: ChatMessage[] = session.messages.map(m => ({
           id: m.id,
           role: m.role as MessageRole,
@@ -116,7 +149,10 @@ export class ChatService {
           sources: m.sources,
           timestamp: new Date(m.createdAtUtc),
         }));
-        this.messages$.next(messages);
+
+        if (setAsCurrent || this.currentSessionId$.value === sessionId) {
+          this.messages$.next(messages);
+        }
       },
       error: (err) => {
         console.error('Failed to load session detail:', err);
@@ -154,5 +190,9 @@ export class ChatService {
     if (!sessionId) {
       this.clearMessages();
     }
+  }
+
+  setThinkingSession(sessionId: string | null): void {
+    this.currentThinkingSessionId$.next(sessionId);
   }
 }

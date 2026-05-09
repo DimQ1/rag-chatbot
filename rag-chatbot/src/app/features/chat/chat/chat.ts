@@ -51,7 +51,6 @@ export class Chat implements AfterViewChecked {
     Validators.maxLength(2000),
   ]);
 
-  thinking = signal(false);
   readonly sessionsPanelOpen = signal(true);
   readonly sidebarWidth = signal(320);
 
@@ -137,10 +136,17 @@ export class Chat implements AfterViewChecked {
 
   send(): void {
     const question = this.inputControl.value?.trim();
-    if (!question || this.inputControl.invalid || this.thinking()) return;
+    if (!question || this.inputControl.invalid || this.isCurrentSessionThinking()) return;
 
     const sessionId = this.chatService.currentSessionId$Value;
     if (!sessionId) {
+      const fallbackSession = this.chatService.sessionsList[0];
+      if (fallbackSession) {
+        this.chatService.setCurrentSession(fallbackSession.id);
+        this.sendMessage(fallbackSession.id, question);
+        return;
+      }
+
       // Create a new session if one doesn't exist
       this.chatService.createSession().subscribe({
         next: (session) => {
@@ -162,21 +168,28 @@ export class Chat implements AfterViewChecked {
 
     this.chatService.addMessage('user', question);
     this.inputControl.reset();
-    this.thinking.set(true);
+    this.chatService.setThinkingSession(sessionId);
 
     this.chatService.addMessageToSession(sessionId, question).subscribe({
       next: () => {
         // Reload the session to get the updated messages
-        this.chatService.loadSessionDetail(sessionId);
+        this.chatService.loadSessionDetail(sessionId, { setAsCurrent: false });
         this.chatService.loadSessions();
-        this.thinking.set(false);
+        this.chatService.setThinkingSession(null);
       },
       error: (err) => {
         console.error('Failed to send message:', err);
         this.chatService.addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
-        this.thinking.set(false);
+        this.chatService.setThinkingSession(null);
       },
     });
+  }
+
+  isCurrentSessionThinking(): boolean {
+    const currentSessionId = this.chatService.currentSessionId$Value;
+    const currentThinkingSessionId = this.chatService.currentThinkingSessionId$Value;
+
+    return Boolean(currentSessionId) && currentSessionId === currentThinkingSessionId;
   }
 
   onInputKeydown(event: KeyboardEvent): void {
@@ -205,6 +218,29 @@ export class Chat implements AfterViewChecked {
 
   trackById(_: number, msg: ChatMessage): string {
     return msg.id;
+  }
+
+  resolveSourceUrl(url: string): string {
+    const legacyPrefix = 'local://knowledge/';
+    if (!url.toLowerCase().startsWith(legacyPrefix)) {
+      return url;
+    }
+
+    const encodedFileName = url.slice(legacyPrefix.length).split(/[?#]/, 1)[0];
+    const decodedFileName = decodeURIComponent(encodedFileName);
+    const fileName = decodedFileName.includes('/')
+      ? decodedFileName.substring(decodedFileName.lastIndexOf('/') + 1)
+      : decodedFileName;
+    const fileStem = fileName.endsWith('.md') ? fileName.slice(0, -3) : fileName;
+
+    const normalizedId = fileStem
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    return normalizedId ? `/document/${encodeURIComponent(normalizedId)}` : url;
   }
 
   private scrollToBottom(): void {

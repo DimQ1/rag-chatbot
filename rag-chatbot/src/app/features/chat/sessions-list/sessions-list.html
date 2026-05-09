@@ -25,6 +25,11 @@
         <div class="session-content" title="{{ session.topic }}">
           <mat-icon *ngIf="session.isPinned" class="pin-icon">push_pin</mat-icon>
           <span class="session-topic">{{ session.topic }}</span>
+          <span class="thinking-indicator" *ngIf="(currentThinkingSessionId | async) === session.id" aria-label="Assistant is thinking" title="Assistant is thinking">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </span>
         </div>
 
         <div class="session-actions" (click)="$event.stopPropagation()">

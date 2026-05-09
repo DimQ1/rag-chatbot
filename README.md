@@ -71,6 +71,18 @@ dotnet watch run --launch-profile http
 
 The API runs on `http://localhost:5024`.
 
+### Initial Development Login
+
+Use these local development credentials after starting the frontend and backend:
+
+- Email: `admin@rag.local`
+- Password: `ChangeMe123!`
+
+Notes:
+
+- These are development-only credentials and should be changed for any shared or production environment.
+- If login fails, verify the backend is running and seeded data is available.
+
 ### 3. Full stack in VS Code
 
 The workspace includes tasks for:
@@ -98,6 +110,35 @@ Check `rag-chatbot-api/appsettings.Development.json` and replace placeholders be
 - `Rag:OpenAIApiKey`
 
 The backend creates a local SQLite database in the API project folder during development.
+
+### Local LM Studio Setup
+
+For local-only RAG/chat development, you can run the API against LM Studio's OpenAI-compatible server.
+
+- LM Studio download: https://lmstudio.ai/
+- LM Studio docs: https://lmstudio.ai/docs
+- OpenAI-compatible local server docs: https://lmstudio.ai/docs/local-server
+
+Recommended local endpoint values (when server is started in LM Studio):
+
+- Base URL: `http://127.0.0.1:1234/v1`
+- API Key: any non-empty value (example: `lm-studio`)
+
+Suggested model names for this workspace:
+
+- Chat model: `google/gemma-3-12b`
+- Chat model (smaller/faster): `google/gemma-3-4b`
+- Embedding model: `text-embedding-bge-m3`
+
+Useful model links:
+
+- Gemma 3 collection: https://huggingface.co/collections/google/gemma-3-67c0e9f0f9efea7c84d2f3f9
+- BGE-M3 embeddings: https://huggingface.co/BAAI/bge-m3
+
+Notes:
+
+- Model ids must match exactly what LM Studio exposes after loading a model.
+- If you switch embedding models, reprocess the knowledge base from the admin panel.
 
 ## Development Notes
 
