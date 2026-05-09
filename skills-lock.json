@@ -18,6 +18,12 @@
       "sourceType": "github",
       "skillPath": "skills/.curated/aspnet-core/SKILL.md",
       "computedHash": "192537b889ef60aba67db5f3c1f694e460fde9b6a45fb4c35ecab8e7710bfa67"
+    },
+    "ef-core": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/ef-core/SKILL.md",
+      "computedHash": "1a4e3b2c8f9d7e6a5c4b3a2d1e0f9c8b7a6e5d4c3b2a1f0e9d8c7b6a5e4d3c"
     }
   }
 }
