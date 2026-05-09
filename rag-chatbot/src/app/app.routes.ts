@@ -21,6 +21,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'document/:documentId',
+    loadComponent: () =>
+      import('./features/chat/document-viewer/document-viewer').then((m) => m.DocumentViewer),
+    canActivate: [authGuard],
+  },
+  {
     path: 'account',
     loadComponent: () =>
       import('./features/account/account/account').then((m) => m.Account),

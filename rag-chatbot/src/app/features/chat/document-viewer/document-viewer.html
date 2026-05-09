@@ -1,0 +1,22 @@
+<div class="document-page">
+  <mat-toolbar class="document-toolbar">
+    <button mat-icon-button routerLink="/chat" aria-label="Back to chat">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <span>Knowledge Document</span>
+  </mat-toolbar>
+
+  <main class="document-content">
+    @if (loading()) {
+      <p class="status">Loading document...</p>
+    } @else if (errorMessage()) {
+      <p class="status error">{{ errorMessage() }}</p>
+    } @else if (document(); as doc) {
+      <article class="document-card">
+        <h1>{{ doc.title }}</h1>
+        <p class="meta">Updated: {{ doc.sourceUpdatedAtUtc | date:'medium' }}</p>
+        <pre class="content">{{ doc.content }}</pre>
+      </article>
+    }
+  </main>
+</div>

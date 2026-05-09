@@ -143,10 +143,7 @@ public class RagIndexService(
         var contentHash = ComputeHash(content);
         var title = sourceDocument.Title;
         var sourceUpdatedAtUtc = sourceDocument.SourceUpdatedAtUtc;
-        var sourceFileName = string.IsNullOrWhiteSpace(sourceDocument.OriginalFileName)
-            ? $"{documentId}.md"
-            : sourceDocument.OriginalFileName;
-        var url = $"local://knowledge/{sourceFileName}";
+        var url = $"/document/{Uri.EscapeDataString(documentId)}";
 
         var existing = await _dbContext.RagVectorDocuments
             .FirstOrDefaultAsync(document => document.DocumentId == documentId, cancellationToken);

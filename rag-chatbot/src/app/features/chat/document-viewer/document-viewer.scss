@@ -1,0 +1,53 @@
+.document-page {
+  min-height: 100vh;
+  background: #f3f5f9;
+}
+
+.document-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #ffffff;
+  border-bottom: 1px solid #d9deea;
+}
+
+.document-content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.document-card {
+  background: #ffffff;
+  border: 1px solid #d9deea;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.06);
+}
+
+.document-card h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.meta {
+  margin: 0 0 1rem;
+  color: #5d6473;
+}
+
+.content {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #172033;
+}
+
+.status {
+  color: #172033;
+}
+
+.status.error {
+  color: #b42318;
+}

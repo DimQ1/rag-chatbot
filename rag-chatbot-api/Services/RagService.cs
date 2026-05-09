@@ -108,7 +108,7 @@ public class RagService(
             Sources = retrieved.Select(d => new RagSource
             {
                 Title = d.Title,
-                Url = d.Url
+                Url = $"/document/{Uri.EscapeDataString(d.DocumentId)}"
             })
         };
     }
@@ -135,6 +135,7 @@ public class RagService(
                 cancellationToken: cancellationToken))
             {
                 documents.Add(new KnowledgeDocument(
+                    result.Record.Key,
                     result.Record.Title,
                     result.Record.Url,
                     result.Record.Content));
@@ -240,7 +241,7 @@ public class RagService(
         };
     }
 
-    private sealed record KnowledgeDocument(string Title, string Url, string Content);
+    private sealed record KnowledgeDocument(string DocumentId, string Title, string Url, string Content);
 }
 
 #pragma warning restore SKEXP0001

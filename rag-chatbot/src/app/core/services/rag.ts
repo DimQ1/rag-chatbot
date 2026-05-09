@@ -8,6 +8,13 @@ export interface RagResponse {
   sources: { title: string; url: string }[];
 }
 
+export interface RagDocumentResponse {
+  documentId: string;
+  title: string;
+  content: string;
+  sourceUpdatedAtUtc: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -18,5 +25,11 @@ export class RagService {
     return this.http.post<RagResponse>(`${environment.apiUrl}/rag/query`, {
       question,
     });
+  }
+
+  getDocument(documentId: string): Observable<RagDocumentResponse> {
+    return this.http.get<RagDocumentResponse>(
+      `${environment.apiUrl}/rag/documents/${encodeURIComponent(documentId)}`
+    );
   }
 }
