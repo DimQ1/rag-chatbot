@@ -14,6 +14,9 @@ public class ChatSessionController(
     IRagService ragService,
     ILogger<ChatSessionController> logger) : ControllerBase
 {
+    private const string UserRole = "user";
+    private const string AssistantRole = "assistant";
+
     private readonly IChatSessionService _chatSessionService = chatSessionService;
     private readonly IRagService _ragService = ragService;
     private readonly ILogger<ChatSessionController> _logger = logger;
@@ -28,9 +31,8 @@ public class ChatSessionController(
     public async Task<ActionResult<ChatSessionResponse>> CreateSession(
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         try
         {
@@ -50,17 +52,15 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating chat session");
-            return StatusCode(500, new { message = "Failed to create chat session." });
+            return HandleServerError(ex, "Error creating chat session", "Failed to create chat session.");
         }
     }
 
     [HttpGet]
     public async Task<ActionResult<List<ChatSessionResponse>>> GetSessions(CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         try
         {
@@ -69,8 +69,7 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving chat sessions");
-            return StatusCode(500, new { message = "Failed to retrieve chat sessions." });
+            return HandleServerError(ex, "Error retrieving chat sessions", "Failed to retrieve chat sessions.");
         }
     }
 
@@ -79,9 +78,8 @@ public class ChatSessionController(
         [FromRoute] Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         try
         {
@@ -93,8 +91,7 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving chat session detail");
-            return StatusCode(500, new { message = "Failed to retrieve chat session." });
+            return HandleServerError(ex, "Error retrieving chat session detail", "Failed to retrieve chat session.");
         }
     }
 
@@ -104,9 +101,8 @@ public class ChatSessionController(
         [FromBody] AddMessageToChatSessionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         if (string.IsNullOrWhiteSpace(request.Question))
             return BadRequest(new { message = "Question is required." });
@@ -121,7 +117,7 @@ public class ChatSessionController(
             // Add user message
             await _chatSessionService.AddMessageToSessionAsync(
                 sessionId,
-                "user",
+                UserRole,
                 request.Question,
                 null,
                 cancellationToken);
@@ -139,7 +135,7 @@ public class ChatSessionController(
             // Add assistant message
             await _chatSessionService.AddMessageToSessionAsync(
                 sessionId,
-                "assistant",
+                AssistantRole,
                 ragResponse.Answer,
                 sources,
                 cancellationToken);
@@ -159,8 +155,7 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adding message to session");
-            return StatusCode(500, new { message = "Failed to add message to session." });
+            return HandleServerError(ex, "Error adding message to session", "Failed to add message to session.");
         }
     }
 
@@ -170,9 +165,8 @@ public class ChatSessionController(
         [FromBody] RenameChatSessionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         if (string.IsNullOrWhiteSpace(request.Topic))
             return BadRequest(new { message = "Topic is required." });
@@ -192,8 +186,7 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error renaming session");
-            return StatusCode(500, new { message = "Failed to rename session." });
+            return HandleServerError(ex, "Error renaming session", "Failed to rename session.");
         }
     }
 
@@ -203,9 +196,8 @@ public class ChatSessionController(
         [FromBody] PinChatSessionRequest request,
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         try
         {
@@ -222,8 +214,7 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error pinning session");
-            return StatusCode(500, new { message = "Failed to pin session." });
+            return HandleServerError(ex, "Error pinning session", "Failed to pin session.");
         }
     }
 
@@ -232,9 +223,8 @@ public class ChatSessionController(
         [FromRoute] Guid sessionId,
         CancellationToken cancellationToken = default)
     {
-        var userId = GetUserId();
-        if (userId == Guid.Empty)
-            return Unauthorized(new { message = "Invalid user context." });
+        if (!TryGetAuthenticatedUserId(out var userId, out var authError))
+            return authError;
 
         try
         {
@@ -246,8 +236,26 @@ public class ChatSessionController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting session");
-            return StatusCode(500, new { message = "Failed to delete session." });
+            return HandleServerError(ex, "Error deleting session", "Failed to delete session.");
         }
+    }
+
+    private bool TryGetAuthenticatedUserId(out Guid userId, out ActionResult error)
+    {
+        userId = GetUserId();
+        if (userId != Guid.Empty)
+        {
+            error = null!;
+            return true;
+        }
+
+        error = Unauthorized(new { message = "Invalid user context." });
+        return false;
+    }
+
+    private ActionResult HandleServerError(Exception exception, string logMessage, string responseMessage)
+    {
+        _logger.LogError(exception, logMessage);
+        return StatusCode(500, new { message = responseMessage });
     }
 }

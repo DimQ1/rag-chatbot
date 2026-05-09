@@ -17,6 +17,10 @@ public class ChatSessionService(
     IOptions<RagOptions> ragOptions,
     ILogger<ChatSessionService> logger) : IChatSessionService
 {
+    private const string DefaultSessionTopic = "New Chat";
+    private const int TopicMaxLength = 50;
+    private const int TopicTrimLength = 47;
+
     private readonly AppDbContext _dbContext = dbContext;
     private readonly RagOptions _ragOptions = ragOptions.Value;
     private readonly ILogger<ChatSessionService> _logger = logger;
@@ -27,7 +31,7 @@ public class ChatSessionService(
         {
             Id = Guid.NewGuid(),
             UserId = userId,
-            Topic = "New Chat",
+            Topic = DefaultSessionTopic,
             IsCustomTopic = false,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -43,7 +47,8 @@ public class ChatSessionService(
     {
         var session = await _dbContext.ChatSessions
             .AsNoTracking()
-            .Where(s => s.Id == sessionId && s.UserId == userId && s.DeletedAtUtc == null)
+            .WhereActiveByUser(userId)
+            .Where(s => s.Id == sessionId)
             .Select(s => new ChatSessionResponse
             {
                 Id = s.Id,
@@ -62,7 +67,8 @@ public class ChatSessionService(
     {
         var session = await _dbContext.ChatSessions
             .AsNoTracking()
-            .Where(s => s.Id == sessionId && s.UserId == userId && s.DeletedAtUtc == null)
+            .WhereActiveByUser(userId)
+            .Where(s => s.Id == sessionId)
             .Include(s => s.Messages.OrderBy(m => m.MessageOrder))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -95,7 +101,7 @@ public class ChatSessionService(
     {
         var sessions = await _dbContext.ChatSessions
             .AsNoTracking()
-            .Where(s => s.UserId == userId && s.DeletedAtUtc == null)
+            .WhereActiveByUser(userId)
             .OrderByDescending(s => s.IsPinned)
             .ThenByDescending(s => s.UpdatedAtUtc)
             .Select(s => new ChatSessionResponse
@@ -117,8 +123,7 @@ public class ChatSessionService(
         if (string.IsNullOrWhiteSpace(newTopic))
             return false;
 
-        var session = await _dbContext.ChatSessions
-            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.DeletedAtUtc == null, cancellationToken);
+        var session = await GetActiveSessionByIdAsync(sessionId, userId, cancellationToken);
 
         if (session == null)
             return false;
@@ -133,8 +138,7 @@ public class ChatSessionService(
 
     public async Task<bool> PinSessionAsync(Guid sessionId, Guid userId, bool isPinned, CancellationToken cancellationToken = default)
     {
-        var session = await _dbContext.ChatSessions
-            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.DeletedAtUtc == null, cancellationToken);
+        var session = await GetActiveSessionByIdAsync(sessionId, userId, cancellationToken);
 
         if (session == null)
             return false;
@@ -148,8 +152,7 @@ public class ChatSessionService(
 
     public async Task<bool> DeleteSessionAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var session = await _dbContext.ChatSessions
-            .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId && s.DeletedAtUtc == null, cancellationToken);
+        var session = await GetActiveSessionByIdAsync(sessionId, userId, cancellationToken);
 
         if (session == null)
             return false;
@@ -216,8 +219,7 @@ Respond with ONLY the topic title, no additional text.";
 
             var response = await kernel.InvokePromptAsync<string>(prompt, cancellationToken: cancellationToken);
             var topic = response?.Trim() ?? ExtractTopicFromQuestion(question);
-
-            return topic.Length > 50 ? topic.Substring(0, 47) + "..." : topic;
+            return TruncateTopic(topic);
         }
         catch (Exception ex)
         {
@@ -230,6 +232,26 @@ Respond with ONLY the topic title, no additional text.";
     {
         var words = question.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var topic = string.Join(" ", words.Take(5));
-        return topic.Length > 50 ? topic.Substring(0, 47) + "..." : topic;
+        return TruncateTopic(topic);
+    }
+
+    private static string TruncateTopic(string topic)
+    {
+        return topic.Length > TopicMaxLength ? topic.Substring(0, TopicTrimLength) + "..." : topic;
+    }
+
+    private Task<ChatSession?> GetActiveSessionByIdAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken)
+    {
+        return _dbContext.ChatSessions
+            .WhereActiveByUser(userId)
+            .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+    }
+}
+
+internal static class ChatSessionQueryExtensions
+{
+    public static IQueryable<ChatSession> WhereActiveByUser(this IQueryable<ChatSession> query, Guid userId)
+    {
+        return query.Where(s => s.UserId == userId && s.DeletedAtUtc == null);
     }
 }

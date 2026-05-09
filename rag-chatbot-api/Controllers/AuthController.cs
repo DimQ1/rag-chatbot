@@ -17,6 +17,11 @@ public class AuthController(
     ITokenService tokenService,
     IOptions<GoogleAuthOptions> googleAuthOptions) : ControllerBase
 {
+    private const string DefaultUserRole = "User";
+    private const string InvalidCredentialsMessage = "Invalid email or password.";
+    private const string GoogleSignInOnlyMessage = "This account uses Google sign-in. Please log in with Google.";
+    private const string ExistingPasswordAccountMessage = "An account with this email already exists. Please log in with your email and password.";
+
     private readonly AppDbContext _dbContext = dbContext;
     private readonly ITokenService _tokenService = tokenService;
     private readonly GoogleAuthOptions _googleAuthOptions = googleAuthOptions.Value;
@@ -24,7 +29,7 @@ public class AuthController(
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var normalizedEmail = NormalizeEmail(request.Email);
 
         var existingUser = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
         if (existingUser is not null)
@@ -40,7 +45,7 @@ public class AuthController(
             Email = normalizedEmail,
             PasswordHash = hash,
             PasswordSalt = salt,
-            Role = "User"
+            Role = DefaultUserRole
         };
 
         _dbContext.Users.Add(user);
@@ -52,23 +57,23 @@ public class AuthController(
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
     {
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var normalizedEmail = NormalizeEmail(request.Email);
 
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
         if (user is null)
         {
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Unauthorized(new { message = InvalidCredentialsMessage });
         }
 
         if (string.IsNullOrEmpty(user.PasswordHash) || string.IsNullOrEmpty(user.PasswordSalt))
         {
-            return Unauthorized(new { message = "This account uses Google sign-in. Please log in with Google." });
+            return Unauthorized(new { message = GoogleSignInOnlyMessage });
         }
 
         var validPassword = PasswordService.VerifyPassword(request.Password, user.PasswordHash, user.PasswordSalt);
         if (!validPassword)
         {
-            return Unauthorized(new { message = "Invalid email or password." });
+            return Unauthorized(new { message = InvalidCredentialsMessage });
         }
 
         return Ok(ToAuthResponse(user));
@@ -95,26 +100,36 @@ public class AuthController(
             return Unauthorized(new { message = "Invalid Google token." });
         }
 
-        var email = payload.Email.Trim().ToLowerInvariant();
+        var email = NormalizeEmail(payload.Email);
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
 
         if (user is null)
         {
-            user = new AppUser
-            {
-                Name = payload.Name ?? payload.GivenName ?? "Google User",
-                Email = email,
-                Role = "User"
-            };
+            user = CreateGoogleUser(payload, email);
             _dbContext.Users.Add(user);
             await _dbContext.SaveChangesAsync();
         }
         else if (!string.IsNullOrEmpty(user.PasswordHash))
         {
-            return Conflict(new { message = "An account with this email already exists. Please log in with your email and password." });
+            return Conflict(new { message = ExistingPasswordAccountMessage });
         }
 
         return Ok(ToAuthResponse(user));
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return email.Trim().ToLowerInvariant();
+    }
+
+    private static AppUser CreateGoogleUser(GoogleJsonWebSignature.Payload payload, string normalizedEmail)
+    {
+        return new AppUser
+        {
+            Name = payload.Name ?? payload.GivenName ?? "Google User",
+            Email = normalizedEmail,
+            Role = DefaultUserRole
+        };
     }
 
     private AuthResponse ToAuthResponse(AppUser user)
