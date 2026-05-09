@@ -1,4 +1,5 @@
 using System.Text;
+using System.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -219,15 +220,11 @@ static async Task EnsureRagConfigurationAsync(AppDbContext dbContext, RagOptions
 
 static void EnsureEmbeddingModelColumn(AppDbContext dbContext)
 {
-    try
-    {
-        dbContext.Database.ExecuteSqlRaw(
-            "ALTER TABLE RagRuntimeConfigurations ADD COLUMN EmbeddingModelId TEXT NOT NULL DEFAULT 'text-embedding-3-small';");
-    }
-    catch
-    {
-        // Ignore when the column already exists in SQLite.
-    }
+    AddColumnIfMissing(
+        dbContext,
+        "RagRuntimeConfigurations",
+        "EmbeddingModelId",
+        "TEXT NOT NULL DEFAULT 'text-embedding-3-small'");
 }
 
 static void EnsureVectorDocumentTable(AppDbContext dbContext)
@@ -249,22 +246,73 @@ static void EnsureVectorDocumentTable(AppDbContext dbContext)
         CREATE UNIQUE INDEX IF NOT EXISTS IX_RagVectorDocuments_DocumentId ON RagVectorDocuments (DocumentId);
         """);
 
-    try
+    AddColumnIfMissing(dbContext, "RagVectorDocuments", "EmbeddingJson", "TEXT NULL");
+    AddColumnIfMissing(dbContext, "RagVectorDocuments", "EmbeddingModelId", "TEXT NULL");
+}
+
+static void AddColumnIfMissing(AppDbContext dbContext, string tableName, string columnName, string columnDefinition)
+{
+    if (ColumnExists(dbContext, tableName, columnName))
     {
-        dbContext.Database.ExecuteSqlRaw("ALTER TABLE RagVectorDocuments ADD COLUMN EmbeddingJson TEXT NULL;");
+        return;
     }
-    catch
+
+    var connection = dbContext.Database.GetDbConnection();
+    var shouldClose = connection.State != ConnectionState.Open;
+
+    if (shouldClose)
     {
-        // Ignore when the column already exists.
+        connection.Open();
     }
 
     try
     {
-        dbContext.Database.ExecuteSqlRaw("ALTER TABLE RagVectorDocuments ADD COLUMN EmbeddingModelId TEXT NULL;");
+        using var command = connection.CreateCommand();
+        command.CommandText = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnDefinition};";
+        command.ExecuteNonQuery();
     }
-    catch
+    finally
     {
-        // Ignore when the column already exists.
+        if (shouldClose)
+        {
+            connection.Close();
+        }
+    }
+}
+
+static bool ColumnExists(AppDbContext dbContext, string tableName, string columnName)
+{
+    var connection = dbContext.Database.GetDbConnection();
+    var shouldClose = connection.State != ConnectionState.Open;
+
+    if (shouldClose)
+    {
+        connection.Open();
+    }
+
+    try
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{tableName}\");";
+        using var reader = command.ExecuteReader();
+
+        while (reader.Read())
+        {
+            var currentColumnName = reader["name"]?.ToString();
+            if (string.Equals(currentColumnName, columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    finally
+    {
+        if (shouldClose)
+        {
+            connection.Close();
+        }
     }
 }
 
@@ -285,3 +333,5 @@ static void EnsureSourceDocumentTable(AppDbContext dbContext)
         CREATE UNIQUE INDEX IF NOT EXISTS IX_RagSourceDocuments_DocumentId ON RagSourceDocuments (DocumentId);
         """);
 }
+
+public partial class Program;

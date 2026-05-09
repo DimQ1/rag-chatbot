@@ -12,7 +12,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
-import { RagService } from '../../../core/services/rag';
 import { ChatService, ChatMessage } from '../../../core/services/chat';
 import { AuthService } from '../../../core/services/auth';
 import { SessionsListComponent } from '../sessions-list/sessions-list';
@@ -40,7 +39,6 @@ import { SessionsListComponent } from '../sessions-list/sessions-list';
   styleUrl: './chat.scss',
 })
 export class Chat implements AfterViewChecked {
-  private readonly ragService = inject(RagService);
   private readonly chatService = inject(ChatService);
   readonly authService = inject(AuthService);
 
@@ -77,6 +75,7 @@ export class Chat implements AfterViewChecked {
       next: (session) => {
         this.chatService.setCurrentSession(session.id);
         this.chatService.clearMessages();
+        this.chatService.loadSessions();
       },
       error: (err) => {
         console.error('Failed to create session:', err);
@@ -99,7 +98,7 @@ export class Chat implements AfterViewChecked {
     const sessionId = this.chatService.currentSessionId$Value;
     if (!sessionId) {
       // Create a new session if one doesn't exist
-      this.chatService.createSession(question).subscribe({
+      this.chatService.createSession().subscribe({
         next: (session) => {
           this.chatService.setCurrentSession(session.id);
           this.sendMessage(session.id, question);
@@ -125,6 +124,7 @@ export class Chat implements AfterViewChecked {
       next: () => {
         // Reload the session to get the updated messages
         this.chatService.loadSessionDetail(sessionId);
+        this.chatService.loadSessions();
         this.thinking.set(false);
       },
       error: (err) => {

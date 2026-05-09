@@ -26,7 +26,6 @@ public class ChatSessionController(
 
     [HttpPost("create")]
     public async Task<ActionResult<ChatSessionResponse>> CreateSession(
-        [FromBody] CreateChatSessionRequest request,
         CancellationToken cancellationToken = default)
     {
         var userId = GetUserId();
@@ -35,18 +34,7 @@ public class ChatSessionController(
 
         try
         {
-            var session = await _chatSessionService.CreateSessionAsync(userId, request.InitialQuestion, cancellationToken);
-
-            // If there's an initial question, add it as the first user message
-            if (!string.IsNullOrWhiteSpace(request.InitialQuestion))
-            {
-                await _chatSessionService.AddMessageToSessionAsync(
-                    session.Id,
-                    "user",
-                    request.InitialQuestion,
-                    null,
-                    cancellationToken);
-            }
+            var session = await _chatSessionService.CreateSessionAsync(userId, cancellationToken);
 
             var response = new ChatSessionResponse
             {

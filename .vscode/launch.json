@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "Frontend: Chrome (localhost:4200)",
-      "type": "pwa-chrome",
+      "type": "chrome",
       "request": "launch",
       "url": "http://localhost:4200",
       "webRoot": "${workspaceFolder}/rag-chatbot"
     },
     {
       "name": "Frontend: ng serve + Chrome",
-      "type": "pwa-chrome",
+      "type": "chrome",
       "request": "launch",
       "preLaunchTask": "frontend: ng serve",
       "url": "http://localhost:4200",
@@ -22,16 +22,21 @@
     },
     {
       "name": "Backend: .NET API (debug)",
-      "type": "dotnet",
+      "type": "coreclr",
       "request": "launch",
-      "projectPath": "${workspaceFolder}/rag-chatbot-api/rag-chatbot-api.csproj",
+      "preLaunchTask": "backend: build",
+      "program": "${workspaceFolder}/rag-chatbot-api/bin/Debug/net10.0/rag-chatbot-api.dll",
+      "cwd": "${workspaceFolder}/rag-chatbot-api",
+      "stopAtEntry": false,
       "env": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5024"
+      },
+      "console": "integratedTerminal"
     },
     {
       "name": "Frontend + Backend",
-      "type": "pwa-chrome",
+      "type": "chrome",
       "request": "launch",
       "preLaunchTask": "start: fullstack",
       "url": "http://localhost:4200",

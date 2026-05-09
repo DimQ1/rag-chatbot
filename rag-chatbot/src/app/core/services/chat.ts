@@ -79,10 +79,10 @@ export class ChatService {
   }
 
   // Session management
-  createSession(initialQuestion?: string): Observable<ChatSession> {
+  createSession(): Observable<ChatSession> {
     return this.http.post<ChatSession>(
       `${this.apiUrl}/create`,
-      { initialQuestion }
+      {}
     );
   }
 

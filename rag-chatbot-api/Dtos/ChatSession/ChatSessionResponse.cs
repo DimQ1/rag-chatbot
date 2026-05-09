@@ -35,11 +35,6 @@ public class ChatMessageSource
     public string Url { get; set; } = string.Empty;
 }
 
-public class CreateChatSessionRequest
-{
-    public string? InitialQuestion { get; set; }
-}
-
 public class RenameChatSessionRequest
 {
     public string Topic { get; set; } = string.Empty;

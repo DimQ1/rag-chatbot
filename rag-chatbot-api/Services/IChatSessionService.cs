@@ -5,7 +5,7 @@ namespace rag_chatbot_api.Services;
 
 public interface IChatSessionService
 {
-    Task<ChatSession> CreateSessionAsync(Guid userId, string? initialQuestion = null, CancellationToken cancellationToken = default);
+    Task<ChatSession> CreateSessionAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<ChatSessionResponse?> GetSessionAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
     Task<ChatSessionDetailResponse?> GetSessionDetailAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
     Task<List<ChatSessionResponse>> GetUserSessionsAsync(Guid userId, CancellationToken cancellationToken = default);

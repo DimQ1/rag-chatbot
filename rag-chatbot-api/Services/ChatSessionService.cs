@@ -21,7 +21,7 @@ public class ChatSessionService(
     private readonly RagOptions _ragOptions = ragOptions.Value;
     private readonly ILogger<ChatSessionService> _logger = logger;
 
-    public async Task<ChatSession> CreateSessionAsync(Guid userId, string? initialQuestion = null, CancellationToken cancellationToken = default)
+    public async Task<ChatSession> CreateSessionAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var session = new ChatSession
         {
@@ -163,13 +163,15 @@ public class ChatSessionService(
     public async Task AddMessageToSessionAsync(Guid sessionId, string role, string content, List<ChatMessageSource>? sources, CancellationToken cancellationToken = default)
     {
         var session = await _dbContext.ChatSessions
-            .Include(s => s.Messages)
             .FirstOrDefaultAsync(s => s.Id == sessionId && s.DeletedAtUtc == null, cancellationToken);
 
         if (session == null)
             return;
 
-        var messageOrder = session.Messages.Count;
+        var messageOrder = await _dbContext.ChatSessionMessages
+            .CountAsync(m => m.SessionId == sessionId, cancellationToken);
+
+        var now = DateTime.UtcNow;
         var sourcesJson = sources != null ? JsonSerializer.Serialize(sources) : null;
 
         var message = new ChatSessionMessage
@@ -179,18 +181,12 @@ public class ChatSessionService(
             Role = role,
             Content = content,
             Sources = sourcesJson,
-            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtUtc = now,
             MessageOrder = messageOrder
         };
 
-        session.Messages.Add(message);
-        session.UpdatedAtUtc = DateTime.UtcNow;
-
-        // Auto-generate topic if this is the first user message and topic hasn't been customized
-        if (!session.IsCustomTopic && role == "user" && session.Messages.Count == 1)
-        {
-            // Topic will be generated after the assistant responds
-        }
+        _dbContext.ChatSessionMessages.Add(message);
+        session.UpdatedAtUtc = now;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
