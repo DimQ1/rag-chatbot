@@ -1,4 +1,4 @@
-import { Component, inject, signal, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
+import { Component, inject, signal, ElementRef, ViewChild, AfterViewChecked, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
 import { CdkTextareaAutosize } from '@angular/cdk/text-field';
@@ -53,6 +53,11 @@ export class Chat implements AfterViewChecked {
 
   thinking = signal(false);
   readonly sessionsPanelOpen = signal(true);
+  readonly sidebarWidth = signal(320);
+
+  private readonly sidebarMinWidth = 260;
+  private readonly sidebarMaxWidth = 520;
+  private isResizingSidebar = false;
 
   private readonly questionHistory: string[] = [];
   private historyPosition = -1;
@@ -75,8 +80,38 @@ export class Chat implements AfterViewChecked {
     this.sessionsPanelOpen.update((isOpen) => !isOpen);
   }
 
-  closeSessionsPanel(): void {
-    this.sessionsPanelOpen.set(false);
+  startSidebarResize(event: MouseEvent): void {
+    if (!this.sessionsPanelOpen()) {
+      return;
+    }
+
+    event.preventDefault();
+    this.isResizingSidebar = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onWindowMouseMove(event: MouseEvent): void {
+    if (!this.isResizingSidebar) {
+      return;
+    }
+
+    const viewportLimitedMax = Math.floor(window.innerWidth * 0.6);
+    const effectiveMax = Math.max(this.sidebarMinWidth, Math.min(this.sidebarMaxWidth, viewportLimitedMax));
+    const nextWidth = Math.max(this.sidebarMinWidth, Math.min(effectiveMax, Math.floor(event.clientX)));
+    this.sidebarWidth.set(nextWidth);
+  }
+
+  @HostListener('window:mouseup')
+  stopSidebarResize(): void {
+    if (!this.isResizingSidebar) {
+      return;
+    }
+
+    this.isResizingSidebar = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
   }
 
   createNewChat(): void {

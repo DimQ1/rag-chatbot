@@ -1,8 +1,23 @@
 <div class="chat-layout" [class.sidebar-collapsed]="!sessionsPanelOpen()">
   <!-- Sidebar with Sessions -->
-  <aside class="sessions-sidebar" [class.closed]="!sessionsPanelOpen()">
-    <app-sessions-list (hideRequested)="closeSessionsPanel()"></app-sessions-list>
+  <aside
+    class="sessions-sidebar"
+    [class.closed]="!sessionsPanelOpen()"
+    [style.width.px]="sessionsPanelOpen() ? sidebarWidth() : 0"
+    [style.minWidth.px]="sessionsPanelOpen() ? sidebarWidth() : 0"
+  >
+    <app-sessions-list></app-sessions-list>
   </aside>
+
+  <div
+    class="sidebar-resizer"
+    [class.hidden]="!sessionsPanelOpen()"
+    role="separator"
+    aria-orientation="vertical"
+    [attr.aria-valuenow]="sidebarWidth()"
+    aria-label="Resize sessions sidebar"
+    (mousedown)="startSidebarResize($event)"
+  ></div>
 
   <!-- Main Chat Area -->
   <div class="chat-main">
@@ -15,7 +30,7 @@
         [matTooltip]="sessionsPanelOpen() ? 'Hide sessions' : 'Open sessions'"
         [attr.aria-label]="sessionsPanelOpen() ? 'Hide sessions panel' : 'Open sessions panel'"
       >
-        <mat-icon>{{ sessionsPanelOpen() ? 'left_panel_close' : 'left_panel_open' }}</mat-icon>
+        <mat-icon>{{ sessionsPanelOpen() ? 'chevron_left' : 'chevron_right' }}</mat-icon>
       </button>
       <div class="toolbar-brand">
         <mat-icon class="brand-icon">smart_toy</mat-icon>

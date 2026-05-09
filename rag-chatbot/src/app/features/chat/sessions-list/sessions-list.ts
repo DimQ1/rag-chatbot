@@ -1,4 +1,4 @@
-import { Component, EventEmitter, OnInit, Output, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -33,7 +33,6 @@ import { RenameSessionDialogComponent } from './rename-session-dialog/rename-ses
 export class SessionsListComponent implements OnInit {
   private readonly chatService = inject(ChatService);
   private readonly dialog = inject(MatDialog);
-  @Output() hideRequested = new EventEmitter<void>();
 
   readonly sessions = this.chatService.sessions;
   readonly currentSessionId = this.chatService.currentSessionId;
@@ -61,10 +60,6 @@ export class SessionsListComponent implements OnInit {
         console.error('Failed to create session:', err);
       },
     });
-  }
-
-  requestHide(): void {
-    this.hideRequested.emit();
   }
 
   selectSession(sessionId: string): void {
