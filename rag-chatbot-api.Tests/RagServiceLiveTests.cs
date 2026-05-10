@@ -84,9 +84,10 @@ public class RagServiceLiveTests
             var ragService = new RagService(
                 dbContext,
                 ragOptions,
+                new AgentSessionStore(),
                 loggerFactory.CreateLogger<RagService>());
 
-            var response = await ragService.QueryAsync("Who built the house of bricks?");
+            var response = await ragService.QueryAsync("Who built the house of bricks?", cancellationToken: default);
 
             Assert.False(string.IsNullOrWhiteSpace(response.Answer));
             Assert.NotEmpty(response.Sources);

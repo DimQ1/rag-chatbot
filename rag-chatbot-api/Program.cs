@@ -53,6 +53,7 @@ static void ConfigureApplicationServices(IServiceCollection services)
     services.AddScoped<IRagIndexService, RagIndexService>();
     services.AddScoped<IRagService, RagService>();
     services.AddScoped<IChatSessionService, ChatSessionService>();
+    services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
 }
 
 static void ConfigureCors(IServiceCollection services)
