@@ -16,6 +16,8 @@ namespace rag_chatbot_api.Services;
 public class ChatSessionService(
     AppDbContext dbContext,
     IOptions<RagOptions> ragOptions,
+    IAgentSessionStore agentSessionStore,
+    IAgentSessionStateStore agentSessionStateStore,
     ILogger<ChatSessionService> logger) : IChatSessionService
 {
     private const string DefaultSessionTopicPrefix = "Chat";
@@ -26,6 +28,8 @@ public class ChatSessionService(
 
     private readonly AppDbContext _dbContext = dbContext;
     private readonly RagOptions _ragOptions = ragOptions.Value;
+    private readonly IAgentSessionStore _agentSessionStore = agentSessionStore;
+    private readonly IAgentSessionStateStore _agentSessionStateStore = agentSessionStateStore;
     private readonly ILogger<ChatSessionService> _logger = logger;
 
     public async Task<ChatSession> CreateSessionAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -214,6 +218,8 @@ public class ChatSessionService(
         session.DeletedAtUtc = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        _agentSessionStore.Remove(sessionId);
+        await _agentSessionStateStore.RemoveAsync(sessionId, cancellationToken);
         return true;
     }
 

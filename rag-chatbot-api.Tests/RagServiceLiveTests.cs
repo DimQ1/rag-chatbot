@@ -85,6 +85,7 @@ public class RagServiceLiveTests
                 dbContext,
                 ragOptions,
                 new AgentSessionStore(),
+                new TestAgentSessionStateStore(),
                 loggerFactory.CreateLogger<RagService>());
 
             var response = await ragService.QueryAsync("Who built the house of bricks?", cancellationToken: default);
@@ -151,5 +152,28 @@ public class RagServiceLiveTests
         public string ApplicationName { get; set; } = "rag-chatbot-api.Tests";
         public string ContentRootPath { get; set; } = contentRootPath;
         public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(contentRootPath);
+    }
+
+    private sealed class TestAgentSessionStateStore : IAgentSessionStateStore
+    {
+        private readonly Dictionary<Guid, string> _store = [];
+
+        public Task<string?> LoadAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
+        {
+            _store.TryGetValue(chatSessionId, out var serializedSession);
+            return Task.FromResult(serializedSession);
+        }
+
+        public Task SaveAsync(Guid chatSessionId, string serializedSession, CancellationToken cancellationToken = default)
+        {
+            _store[chatSessionId] = serializedSession;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(Guid chatSessionId, CancellationToken cancellationToken = default)
+        {
+            _store.Remove(chatSessionId);
+            return Task.CompletedTask;
+        }
     }
 }

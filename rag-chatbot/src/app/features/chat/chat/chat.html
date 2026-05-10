@@ -62,6 +62,15 @@
             <mat-icon>admin_panel_settings</mat-icon>
           </button>
         }
+        <button
+          mat-icon-button
+          (click)="toggleIncludeReasoning()"
+          [class.reasoning-enabled]="includeReasoning()"
+          [matTooltip]="includeReasoning() ? 'Reasoning details: On' : 'Reasoning details: Off'"
+          [attr.aria-label]="includeReasoning() ? 'Disable reasoning details' : 'Enable reasoning details'"
+        >
+          <mat-icon>{{ includeReasoning() ? 'psychology' : 'psychology_alt' }}</mat-icon>
+        </button>
         <div class="user-chip">
           <div class="avatar avatar-sm">{{ userInitial }}</div>
           <span class="user-name">{{ userName }}</span>
@@ -93,7 +102,11 @@
           }
 
           <div class="bubble">
-            <p class="text">{{ msg.content }}</p>
+            @if (msg.role === 'assistant') {
+              <div class="text markdown" [innerHTML]="renderAssistantMessage(msg.content)"></div>
+            } @else {
+              <p class="text">{{ msg.content }}</p>
+            }
             @if (msg.sources && msg.sources.length > 0) {
               <div class="sources">
                 <span class="sources-label">

@@ -129,7 +129,11 @@ public class ChatSessionController(
                 cancellationToken);
 
             // Get RAG response
-            var ragResponse = await _ragService.QueryAsync(sessionAwareQuestion, sessionId, cancellationToken);
+            var ragResponse = await _ragService.QueryAsync(
+                sessionAwareQuestion,
+                sessionId,
+                request.IncludeReasoning,
+                cancellationToken);
 
             // Convert RagSource to ChatMessageSource
             var sources = ragResponse.Sources?.Select(s => new ChatMessageSource

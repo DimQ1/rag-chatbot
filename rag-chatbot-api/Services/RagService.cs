@@ -19,15 +19,13 @@ namespace rag_chatbot_api.Services;
 public class RagService(
     AppDbContext dbContext,
     IOptions<RagOptions> ragOptions,
-    IAgentSessionStore agentSessionStore,
     ILogger<RagService> logger) : IRagService
 {
     private readonly AppDbContext _dbContext = dbContext;
     private readonly RagOptions _ragOptions = ragOptions.Value;
-    private readonly IAgentSessionStore _agentSessionStore = agentSessionStore;
     private readonly ILogger<RagService> _logger = logger;
 
-    public async Task<RagQueryResponse> QueryAsync(string question, Guid? chatSessionId = null, CancellationToken cancellationToken = default)
+    public async Task<RagQueryResponse> QueryAsync(string question, Guid? chatSessionId = null, bool includeReasoning = false, CancellationToken cancellationToken = default)
     {
         var configuration = await ResolveConfigurationAsync(cancellationToken);
         if (!HasRequiredConfiguration(configuration))
@@ -105,7 +103,7 @@ public class RagService(
             };
         }
 
-        var answer = await GenerateAnswerAsync(configuration, question, retrieved, chatSessionId, cancellationToken);
+        var answer = await GenerateAnswerAsync(configuration, question, retrieved, chatSessionId, includeReasoning, cancellationToken);
 
         return new RagQueryResponse
         {
@@ -160,6 +158,7 @@ public class RagService(
         string question,
         IReadOnlyCollection<KnowledgeDocument> documents,
         Guid? chatSessionId,
+        bool includeReasoning,
         CancellationToken cancellationToken)
     {
         var context = string.Join("\n\n", documents.Select(d =>
@@ -172,19 +171,35 @@ public class RagService(
                 ? new OpenAIClientOptions()
                 : new OpenAIClientOptions { Endpoint = endpoint };
 
+            var responseStyleInstructions = includeReasoning
+                ? "Provide the final answer first. You may include a short, user-facing rationale when helpful. Do not reveal hidden chain-of-thought or internal notes."
+                : "Never output reasoning steps, analysis notes, or chain-of-thought. Return only the final user-facing answer.";
+
+            var agentInstructions =
+                "You are a helpful assistant. Use only the provided context. " +
+                "When the question includes a session-memory block, you may use that memory to answer follow-up questions. " +
+                "If the answer is not present in the context, say you do not know. " +
+                "Translate your response to the language of the question if necessary. " +
+                "Format your response as Markdown. " +
+                responseStyleInstructions + " " +
+                "Respond naturally and directly, and avoid rigid templates unless the user explicitly asks for a specific format.";
+
             var agent = new OpenAIClient(
                     new ApiKeyCredential(configuration.OpenAIApiKey),
                     clientOptions)
                 .GetChatClient(configuration.ModelId)
                 .AsAIAgent(
-                    name: "Help Assistant",
-                    instructions:
-                        "You are a helpful assistant. Use only the provided context. " +
-                        "When the question includes a session-memory block, you may use that memory to answer follow-up questions. " +
-                        "If the answer is not present in the context, say you do not know. " +
-                        "You must return a concise answer based on the provided information, and " +
-                        "translate it to the language of the question if necessary. " +
-                        "Don't return any markup, only plain text.");
+                    new ChatClientAgentOptions
+                    {
+                        Name = "Help Assistant",
+                        ChatOptions = new ChatOptions
+                        {
+                            Instructions = agentInstructions
+                        },
+                        ChatHistoryProvider = chatSessionId is Guid providerSessionId
+                            ? new DbChatHistoryProvider(_dbContext, providerSessionId)
+                            : null
+                    });
 
             var prompt =
                 $"""
@@ -192,46 +207,15 @@ public class RagService(
                 {context}
 
                 Question: {question}
-
-                Return a concise plain-text answer.
                 """;
 
-            AgentSession session;
-            if (chatSessionId is Guid cachedSessionId && _agentSessionStore.TryGet(cachedSessionId, out var existingSession))
-            {
-                session = existingSession;
-            }
-            else
-            {
-                session = await agent.CreateSessionAsync();
-
-                if (chatSessionId is Guid newSessionId)
-                {
-                    var historyQuestions = await LoadLastUserQuestionsAsync(newSessionId, cancellationToken);
-                    if (historyQuestions.Count > 0)
-                    {
-                        var seedPromptBuilder = new StringBuilder();
-                        seedPromptBuilder.AppendLine("Initialize memory with these previous user questions from this chat session:");
-                        foreach (var historyQuestion in historyQuestions)
-                        {
-                            seedPromptBuilder.Append("- ").AppendLine(historyQuestion);
-                        }
-
-                        seedPromptBuilder.AppendLine();
-                        seedPromptBuilder.AppendLine("Acknowledge internally and answer exactly with: OK");
-
-                        await foreach (var _ in agent.RunStreamingAsync(seedPromptBuilder.ToString(), session).WithCancellation(cancellationToken))
-                        {
-                            // Drain the stream to complete session priming.
-                        }
-                    }
-
-                    _agentSessionStore.Set(newSessionId, session);
-                }
-            }
+            var session = await agent.CreateSessionAsync(cancellationToken);
 
             var responseBuilder = new StringBuilder();
-            await foreach (var update in agent.RunStreamingAsync(prompt, session).WithCancellation(cancellationToken))
+            await foreach (var update in agent.RunStreamingAsync(
+                prompt,
+                session,
+                cancellationToken: cancellationToken))
             {
                 var hadTextInUpdate = false;
                 foreach (var item in update.Contents)
@@ -255,38 +239,19 @@ public class RagService(
                 }
             }
 
-            if (chatSessionId is Guid sessionIdForCache)
-            {
-                _agentSessionStore.Set(sessionIdForCache, session);
-            }
-
             var content = responseBuilder.ToString();
             if (string.IsNullOrWhiteSpace(content))
             {
                 return "The AI model returned an empty response.";
             }
 
-            return content.Trim();
+            return SanitizeAssistantResponse(content);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "AI completion request failed.");
             return "The AI completion request failed. Verify the AI endpoint and chat model configuration.";
         }
-    }
-
-    private async Task<List<string>> LoadLastUserQuestionsAsync(Guid chatSessionId, CancellationToken cancellationToken)
-    {
-        var questions = await _dbContext.ChatSessionMessages
-            .AsNoTracking()
-            .Where(message => message.SessionId == chatSessionId && message.Role == "user")
-            .OrderByDescending(message => message.MessageOrder)
-            .Take(10)
-            .Select(message => message.Content)
-            .ToListAsync(cancellationToken);
-
-        questions.Reverse();
-        return questions;
     }
 
     private static Uri? TryResolveEndpoint(string? baseUrl)
@@ -362,6 +327,41 @@ public class RagService(
         return string.Equals(fallback, type.ToString(), StringComparison.Ordinal)
             ? null
             : fallback;
+    }
+
+    private static string SanitizeAssistantResponse(string content)
+    {
+        var trimmed = content.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return "The AI model returned an empty response.";
+        }
+
+        // If a model leaks internal scaffolding (e.g. "Thinking Process"), keep only the final user-facing line.
+        if (trimmed.Contains("Thinking Process", StringComparison.OrdinalIgnoreCase))
+        {
+            var lines = trimmed
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToList();
+
+            for (var index = lines.Count - 1; index >= 0; index--)
+            {
+                var line = lines[index];
+                if (line.StartsWith("Thinking Process", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("Final Output", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("Final Answer", StringComparison.OrdinalIgnoreCase)
+                    || char.IsDigit(line[0]) && line.Length > 1 && (line[1] == '.' || line[1] == ')'))
+                {
+                    continue;
+                }
+
+                return line;
+            }
+        }
+
+        return trimmed;
     }
 
     private async Task<RagRuntimeConfiguration> ResolveConfigurationAsync(CancellationToken cancellationToken)
