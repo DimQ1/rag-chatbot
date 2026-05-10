@@ -1,7 +1,12 @@
+using System.ClientModel;
+using System.Text;
+using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
+using OpenAI;
+using OpenAI.Chat;
+using OpenAI.Embeddings;
 using rag_chatbot_api.Data;
 using rag_chatbot_api.Dtos.Rag;
 using rag_chatbot_api.Models;
@@ -23,9 +28,7 @@ public class RagService(
     public async Task<RagQueryResponse> QueryAsync(string question, CancellationToken cancellationToken = default)
     {
         var configuration = await ResolveConfigurationAsync(cancellationToken);
-        var kernel = KernelFactory.CreateKernel(configuration, out var settings);
-
-        if (!settings.HasRequiredConfiguration)
+        if (!HasRequiredConfiguration(configuration))
         {
             return new RagQueryResponse
             {
@@ -65,7 +68,7 @@ public class RagService(
             };
         }
 
-        var queryEmbedding = await TryGenerateEmbeddingAsync(kernel, question, cancellationToken);
+        var queryEmbedding = await TryGenerateEmbeddingAsync(configuration, question, cancellationToken);
         if (queryEmbedding is null)
         {
             return new RagQueryResponse
@@ -100,7 +103,7 @@ public class RagService(
             };
         }
 
-        var answer = await GenerateAnswerAsync(kernel, question, retrieved, cancellationToken);
+        var answer = await GenerateAnswerAsync(configuration, question, retrieved, cancellationToken);
 
         return new RagQueryResponse
         {
@@ -151,7 +154,7 @@ public class RagService(
     }
 
     private async Task<string> GenerateAnswerAsync(
-        Kernel kernel,
+        RagRuntimeConfiguration configuration,
         string question,
         IReadOnlyCollection<KnowledgeDocument> documents,
         CancellationToken cancellationToken)
@@ -161,31 +164,49 @@ public class RagService(
 
         try
         {
+            var endpoint = TryResolveEndpoint(configuration.OpenAIBaseUrl);
+            var clientOptions = endpoint is null
+                ? new OpenAIClientOptions()
+                : new OpenAIClientOptions { Endpoint = endpoint };
+
+            var agent = new OpenAIClient(
+                    new ApiKeyCredential(configuration.OpenAIApiKey),
+                    clientOptions)
+                .GetChatClient(configuration.ModelId)
+                .AsAIAgent(
+                    name: "RAG Assistant",
+                    instructions:
+                        "You are a helpful assistant. Use only the provided context. " +
+                        "If the answer is not present in the context, say you do not know. " +
+                        "You must return a concise answer based on the provided information, and " +
+                        "translate it to the language of the question if necessary. " +
+                        "Don't return any markup, only plain text.");
+
             var prompt =
-                """
-                You are a helpful assistant. Use only the provided context.
-                If the answer is not present in the context, say you do not know.
-                You must return a concise answer based on the provided information, and translate it to the language of the question if necessary. 
-                Don't return any markup, only plain text. 
-
+                $"""
                 Context:
-                {{$context}}
+                {context}
 
-                Question: {{$question}}
+                Question: {question}
 
                 Return a concise plain-text answer.
                 """;
 
-            var result = await kernel.InvokePromptAsync(
-                prompt,
-                new KernelArguments
-                {
-                    ["context"] = context,
-                    ["question"] = question
-                },
-                cancellationToken: cancellationToken);
+            AgentSession session = await agent.CreateSessionAsync();
 
-            var content = result.ToString();
+            var responseBuilder = new StringBuilder();
+            await foreach (var update in agent.RunStreamingAsync(prompt, session).WithCancellation(cancellationToken))
+            {
+                foreach (var item in update.Contents)
+                {
+                    if (item is Microsoft.Extensions.AI.TextContent textContent && !string.IsNullOrWhiteSpace(textContent.Text))
+                    {
+                        responseBuilder.Append(textContent.Text);
+                    }
+                }
+            }
+
+            var content = responseBuilder.ToString();
             if (string.IsNullOrWhiteSpace(content))
             {
                 return "The AI model returned an empty response.";
@@ -200,22 +221,54 @@ public class RagService(
         }
     }
 
+    private static Uri? TryResolveEndpoint(string? baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
+        }
+
+        return Uri.TryCreate(baseUrl, UriKind.Absolute, out var endpoint)
+            ? endpoint
+            : null;
+    }
+
     private async Task<float[]?> TryGenerateEmbeddingAsync(
-        Kernel kernel,
+        RagRuntimeConfiguration configuration,
         string text,
         CancellationToken cancellationToken)
     {
         try
         {
-            var embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-            var embedding = await embeddingGenerator.GenerateAsync(text, cancellationToken: cancellationToken);
-            return embedding.Vector.ToArray();
+            var endpoint = TryResolveEndpoint(configuration.OpenAIBaseUrl);
+            var clientOptions = endpoint is null
+                ? new OpenAIClientOptions()
+                : new OpenAIClientOptions { Endpoint = endpoint };
+
+            var embeddingClient = new OpenAIClient(
+                    new ApiKeyCredential(configuration.OpenAIApiKey),
+                    clientOptions)
+                .GetEmbeddingClient(configuration.EmbeddingModelId);
+
+            var embeddingResponse = await embeddingClient.GenerateEmbeddingAsync(
+                text,
+                cancellationToken: cancellationToken);
+
+            OpenAIEmbedding embedding = embeddingResponse.Value;
+            return embedding.ToFloats().ToArray();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Embedding request failed through Semantic Kernel.");
+            _logger.LogWarning(ex, "Embedding request failed through OpenAI embedding client.");
             return null;
         }
+    }
+
+    private static bool HasRequiredConfiguration(RagRuntimeConfiguration configuration)
+    {
+        return !string.IsNullOrWhiteSpace(configuration.OpenAIApiKey)
+            && !string.IsNullOrWhiteSpace(configuration.ModelId)
+            && !string.IsNullOrWhiteSpace(configuration.EmbeddingModelId);
     }
 
     private async Task<RagRuntimeConfiguration> ResolveConfigurationAsync(CancellationToken cancellationToken)

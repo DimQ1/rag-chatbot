@@ -1,9 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.ClientModel;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
-using Microsoft.SemanticKernel;
+using OpenAI;
+using OpenAI.Embeddings;
 using rag_chatbot_api.Data;
 using rag_chatbot_api.Models;
 using rag_chatbot_api.Options;
@@ -28,7 +29,6 @@ public class RagIndexService(
         await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
 
         var configuration = await ResolveConfigurationAsync(cancellationToken);
-        var kernel = KernelFactory.CreateKernel(configuration, out _);
 
         await RagVectorStore.EnsureCollectionDeletedAsync(_dbContext, configuration.EmbeddingModelId, cancellationToken);
 
@@ -42,7 +42,7 @@ public class RagIndexService(
         foreach (var sourceDocument in sourceDocuments)
         {
             activeDocumentIds.Add(sourceDocument.DocumentId);
-            var updated = await UpsertFromSourceAsync(sourceDocument, configuration, kernel, forceReindex: true, cancellationToken);
+            var updated = await UpsertFromSourceAsync(sourceDocument, configuration, forceReindex: true, cancellationToken);
             if (updated)
             {
                 processed++;
@@ -88,7 +88,6 @@ public class RagIndexService(
         await ImportLegacyKnowledgeBaseFilesAsync(cancellationToken);
 
         var configuration = await ResolveConfigurationAsync(cancellationToken);
-        var kernel = KernelFactory.CreateKernel(configuration, out _);
         var sourceDocument = await _dbContext.RagSourceDocuments
             .AsNoTracking()
             .FirstOrDefaultAsync(document => document.DocumentId == normalizedId, cancellationToken);
@@ -98,7 +97,7 @@ public class RagIndexService(
             return false;
         }
 
-        return await UpsertFromSourceAsync(sourceDocument, configuration, kernel, forceReindex: false, cancellationToken);
+        return await UpsertFromSourceAsync(sourceDocument, configuration, forceReindex: false, cancellationToken);
     }
 
     public async Task RemoveDocumentAsync(string documentId, CancellationToken cancellationToken = default)
@@ -129,7 +128,6 @@ public class RagIndexService(
     private async Task<bool> UpsertFromSourceAsync(
         RagSourceDocument sourceDocument,
         RagRuntimeConfiguration configuration,
-        Kernel kernel,
         bool forceReindex,
         CancellationToken cancellationToken)
     {
@@ -165,7 +163,7 @@ public class RagIndexService(
             await RagVectorStore.DeleteAsync(_dbContext, existing.EmbeddingModelId, documentId, cancellationToken);
         }
 
-        var embedding = await GenerateEmbeddingAsync(kernel, content, cancellationToken);
+        var embedding = await GenerateEmbeddingAsync(configuration, content, cancellationToken);
 
         if (embedding is not null)
         {
@@ -346,19 +344,47 @@ public class RagIndexService(
         };
     }
 
-    private async Task<float[]?> GenerateEmbeddingAsync(Kernel kernel, string text, CancellationToken cancellationToken)
+    private async Task<float[]?> GenerateEmbeddingAsync(
+        RagRuntimeConfiguration configuration,
+        string text,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var embeddingGenerator = kernel.GetRequiredService<IEmbeddingGenerator<string, Embedding<float>>>();
-            var embedding = await embeddingGenerator.GenerateAsync(text, cancellationToken: cancellationToken);
-            return embedding.Vector.ToArray();
+            var endpoint = TryResolveEndpoint(configuration.OpenAIBaseUrl);
+            var clientOptions = endpoint is null
+                ? new OpenAIClientOptions()
+                : new OpenAIClientOptions { Endpoint = endpoint };
+
+            var embeddingClient = new OpenAIClient(
+                    new ApiKeyCredential(configuration.OpenAIApiKey),
+                    clientOptions)
+                .GetEmbeddingClient(configuration.EmbeddingModelId);
+
+            var embeddingResponse = await embeddingClient.GenerateEmbeddingAsync(
+                text,
+                cancellationToken: cancellationToken);
+
+            OpenAIEmbedding embedding = embeddingResponse.Value;
+            return embedding.ToFloats().ToArray();
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to generate embedding through Semantic Kernel while indexing document.");
+            _logger.LogWarning(ex, "Failed to generate embedding through OpenAI embedding client while indexing document.");
             return null;
         }
+    }
+
+    private static Uri? TryResolveEndpoint(string? baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            return null;
+        }
+
+        return Uri.TryCreate(baseUrl, UriKind.Absolute, out var endpoint)
+            ? endpoint
+            : null;
     }
 }
 
