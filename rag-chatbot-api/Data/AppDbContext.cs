@@ -5,6 +5,7 @@ namespace rag_chatbot_api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<AgentSessionState> AgentSessionStates => Set<AgentSessionState>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<RagRuntimeConfiguration> RagRuntimeConfigurations => Set<RagRuntimeConfiguration>();
     public DbSet<RagSourceDocument> RagSourceDocuments => Set<RagSourceDocument>();
@@ -37,6 +38,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<RagRuntimeConfiguration>()
             .Property(c => c.EmbeddingModelId)
             .HasMaxLength(128);
+
+        modelBuilder.Entity<AgentSessionState>()
+            .HasKey(s => s.ChatSessionId);
+
+        modelBuilder.Entity<AgentSessionState>()
+            .Property(s => s.SerializedSession)
+            .IsRequired();
 
         modelBuilder.Entity<RagSourceDocument>()
             .HasIndex(d => d.DocumentId)

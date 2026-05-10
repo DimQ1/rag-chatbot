@@ -1,4 +1,7 @@
-import { Component, inject, signal, ElementRef, ViewChild, AfterViewChecked, HostListener } from '@angular/core';
+import { Component, inject, signal, ElementRef, ViewChild, HostListener, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { distinctUntilChanged } from 'rxjs';
+import { marked } from 'marked';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
 import { CdkTextareaAutosize } from '@angular/cdk/text-field';
@@ -38,9 +41,11 @@ import { SessionsListComponent } from '../sessions-list/sessions-list';
   templateUrl: './chat.html',
   styleUrl: './chat.scss',
 })
-export class Chat implements AfterViewChecked {
+export class Chat {
   private readonly chatService = inject(ChatService);
   readonly authService = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly includeReasoningStorageKey = 'chat_include_reasoning';
 
   @ViewChild('messagesEnd') private messagesEnd!: ElementRef;
 
@@ -53,14 +58,36 @@ export class Chat implements AfterViewChecked {
 
   readonly sessionsPanelOpen = signal(true);
   readonly sidebarWidth = signal(320);
+  readonly includeReasoning = signal(this.loadIncludeReasoningPreference());
 
   private readonly sidebarMinWidth = 260;
   private readonly sidebarMaxWidth = 520;
   private isResizingSidebar = false;
 
   private readonly questionHistory: string[] = [];
+  private readonly markdownCache = new Map<string, string>();
   private historyPosition = -1;
   private pendingDraft = '';
+  private shouldScrollAfterSessionLoad = false;
+
+  constructor() {
+    this.currentSessionId
+      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
+      .subscribe((sessionId) => {
+        this.shouldScrollAfterSessionLoad = Boolean(sessionId);
+      });
+
+    this.messages$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (!this.shouldScrollAfterSessionLoad) {
+          return;
+        }
+
+        this.shouldScrollAfterSessionLoad = false;
+        requestAnimationFrame(() => this.scrollToBottom());
+      });
+  }
 
   get userInitial(): string {
     const name = this.authService.currentUser?.name ?? '';
@@ -77,6 +104,12 @@ export class Chat implements AfterViewChecked {
 
   toggleSessionsPanel(): void {
     this.sessionsPanelOpen.update((isOpen) => !isOpen);
+  }
+
+  toggleIncludeReasoning(): void {
+    const next = !this.includeReasoning();
+    this.includeReasoning.set(next);
+    localStorage.setItem(this.includeReasoningStorageKey, String(next));
   }
 
   startSidebarResize(event: MouseEvent): void {
@@ -130,10 +163,6 @@ export class Chat implements AfterViewChecked {
     this.chatService.clearMessages();
   }
 
-  ngAfterViewChecked(): void {
-    this.scrollToBottom();
-  }
-
   send(): void {
     const question = this.inputControl.value?.trim();
     if (!question || this.inputControl.invalid || this.isCurrentSessionThinking()) return;
@@ -170,7 +199,7 @@ export class Chat implements AfterViewChecked {
     this.inputControl.reset();
     this.chatService.setThinkingSession(sessionId);
 
-    this.chatService.addMessageToSession(sessionId, question).subscribe({
+    this.chatService.addMessageToSession(sessionId, question, this.includeReasoning()).subscribe({
       next: () => {
         // Reload the session to get the updated messages
         this.chatService.loadSessionDetail(sessionId, { setAsCurrent: false });
@@ -218,6 +247,27 @@ export class Chat implements AfterViewChecked {
 
   trackById(_: number, msg: ChatMessage): string {
     return msg.id;
+  }
+
+  renderAssistantMessage(content: string): string {
+    if (!content) {
+      return '';
+    }
+
+    const cached = this.markdownCache.get(content);
+    if (cached) {
+      return cached;
+    }
+
+    const parsed = marked.parse(content, {
+      async: false,
+      breaks: true,
+      gfm: true,
+    });
+
+    const rendered = typeof parsed === 'string' ? parsed : content;
+    this.markdownCache.set(content, rendered);
+    return rendered;
   }
 
   resolveSourceUrl(url: string): string {
@@ -309,5 +359,10 @@ export class Chat implements AfterViewChecked {
 
     const length = target.value.length;
     return target.selectionStart === length && target.selectionEnd === length;
+  }
+
+  private loadIncludeReasoningPreference(): boolean {
+    const saved = localStorage.getItem(this.includeReasoningStorageKey);
+    return saved === 'true';
   }
 }

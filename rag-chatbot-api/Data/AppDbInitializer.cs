@@ -26,12 +26,29 @@ public static class AppDbInitializer
         // Ensure schema is created (EF Core model-based)
         await dbContext.Database.EnsureCreatedAsync();
 
+        // Ensure additive schema updates for existing SQLite databases.
+        await EnsureAgentSessionStateSchemaAsync(dbContext);
+
         // Seed initial data
         var adminOptions = serviceProvider.GetRequiredService<IOptions<AdminOptions>>().Value;
         var ragOptions = serviceProvider.GetRequiredService<IOptions<RagOptions>>().Value;
 
         await SeedRagConfigurationAsync(dbContext, ragOptions);
         await SeedAdminUserAsync(dbContext, adminOptions);
+    }
+
+    private static Task EnsureAgentSessionStateSchemaAsync(AppDbContext dbContext)
+    {
+        const string sql =
+            """
+            CREATE TABLE IF NOT EXISTS "AgentSessionStates" (
+                "ChatSessionId" TEXT NOT NULL CONSTRAINT "PK_AgentSessionStates" PRIMARY KEY,
+                "SerializedSession" TEXT NOT NULL,
+                "UpdatedAtUtc" TEXT NOT NULL
+            );
+            """;
+
+        return dbContext.Database.ExecuteSqlRawAsync(sql);
     }
 
     /// <summary>

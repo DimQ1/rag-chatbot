@@ -23,7 +23,10 @@ public class RagController(IRagService ragService, AppDbContext dbContext) : Con
             return BadRequest(new { message = "Question is required." });
         }
 
-        var response = await _ragService.QueryAsync(request.Question.Trim(), cancellationToken: HttpContext.RequestAborted);
+        var response = await _ragService.QueryAsync(
+            request.Question.Trim(),
+            includeReasoning: request.IncludeReasoning,
+            cancellationToken: HttpContext.RequestAborted);
 
         return Ok(response);
     }

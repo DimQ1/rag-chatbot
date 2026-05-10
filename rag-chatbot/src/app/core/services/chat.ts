@@ -160,10 +160,10 @@ export class ChatService {
     });
   }
 
-  addMessageToSession(sessionId: string, question: string): Observable<any> {
+  addMessageToSession(sessionId: string, question: string, includeReasoning = false): Observable<any> {
     return this.http.post(
       `${this.apiUrl}/${sessionId}/add-message`,
-      { question }
+      { question, includeReasoning }
     );
   }
 

@@ -49,4 +49,5 @@ public class AddMessageToChatSessionRequest
 {
     public Guid SessionId { get; set; }
     public string Question { get; set; } = string.Empty;
+    public bool IncludeReasoning { get; set; }
 }

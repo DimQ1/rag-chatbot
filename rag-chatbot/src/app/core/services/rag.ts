@@ -21,9 +21,10 @@ export interface RagDocumentResponse {
 export class RagService {
   private readonly http = inject(HttpClient);
 
-  query(question: string): Observable<RagResponse> {
+  query(question: string, includeReasoning = false): Observable<RagResponse> {
     return this.http.post<RagResponse>(`${environment.apiUrl}/rag/query`, {
       question,
+      includeReasoning,
     });
   }
 

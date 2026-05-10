@@ -54,6 +54,7 @@ static void ConfigureApplicationServices(IServiceCollection services)
     services.AddScoped<IRagService, RagService>();
     services.AddScoped<IChatSessionService, ChatSessionService>();
     services.AddSingleton<IAgentSessionStore, AgentSessionStore>();
+    services.AddScoped<IAgentSessionStateStore, DbAgentSessionStateStore>();
 }
 
 static void ConfigureCors(IServiceCollection services)
