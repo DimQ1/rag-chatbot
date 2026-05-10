@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
+using System.Text;
 using System.Text.Json;
 using rag_chatbot_api.Data;
 using rag_chatbot_api.Dtos.ChatSession;
@@ -20,6 +21,8 @@ public class ChatSessionService(
     private const string DefaultSessionTopicPrefix = "Chat";
     private const int TopicMaxLength = 50;
     private const int TopicTrimLength = 47;
+    private const int SessionMemoryQuestionWindow = 10;
+    private const int SessionMemoryMessageMaxChars = 500;
 
     private readonly AppDbContext _dbContext = dbContext;
     private readonly RagOptions _ragOptions = ragOptions.Value;
@@ -118,6 +121,55 @@ public class ChatSessionService(
             .ToListAsync(cancellationToken);
 
         return sessions;
+    }
+
+    public async Task<string> BuildSessionAwareQuestionAsync(
+        Guid sessionId,
+        Guid userId,
+        string question,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedQuestion = question.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedQuestion))
+        {
+            return string.Empty;
+        }
+
+        var history = await _dbContext.ChatSessionMessages
+            .AsNoTracking()
+            .Where(m => m.SessionId == sessionId
+                && m.Role == "user"
+                && m.Session != null
+                && m.Session.UserId == userId
+                && m.Session.DeletedAtUtc == null)
+            .OrderByDescending(m => m.MessageOrder)
+            .Take(SessionMemoryQuestionWindow)
+            .Select(m => m.Content)
+            .ToListAsync(cancellationToken);
+
+        if (history.Count == 0)
+        {
+            return normalizedQuestion;
+        }
+
+        history.Reverse();
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Session memory (last 10 user questions):");
+
+        foreach (var userQuestion in history)
+        {
+            builder.Append("User: ")
+                .AppendLine(TruncateForMemory(userQuestion));
+        }
+
+        builder.AppendLine();
+        builder.Append("Current user question: ")
+            .Append(normalizedQuestion)
+            .AppendLine();
+        builder.Append("Use only this session memory. Do not use information from other sessions.");
+
+        return builder.ToString();
     }
 
     public async Task<bool> RenameSessionAsync(Guid sessionId, Guid userId, string newTopic, CancellationToken cancellationToken = default)
@@ -257,6 +309,19 @@ Respond with ONLY the topic title, no additional text.";
         return _dbContext.ChatSessions
             .WhereActiveByUser(userId)
             .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+    }
+
+    private static string TruncateForMemory(string content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return string.Empty;
+        }
+
+        var normalized = content.Trim();
+        return normalized.Length <= SessionMemoryMessageMaxChars
+            ? normalized
+            : normalized[..SessionMemoryMessageMaxChars] + "...";
     }
 }
 

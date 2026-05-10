@@ -114,6 +114,12 @@ public class ChatSessionController(
             if (session == null)
                 return NotFound(new { message = "Chat session not found." });
 
+            var sessionAwareQuestion = await _chatSessionService.BuildSessionAwareQuestionAsync(
+                sessionId,
+                userId,
+                request.Question,
+                cancellationToken);
+
             // Add user message
             await _chatSessionService.AddMessageToSessionAsync(
                 sessionId,
@@ -123,7 +129,7 @@ public class ChatSessionController(
                 cancellationToken);
 
             // Get RAG response
-            var ragResponse = await _ragService.QueryAsync(request.Question, cancellationToken);
+            var ragResponse = await _ragService.QueryAsync(sessionAwareQuestion, sessionId, cancellationToken);
 
             // Convert RagSource to ChatMessageSource
             var sources = ragResponse.Sources?.Select(s => new ChatMessageSource
