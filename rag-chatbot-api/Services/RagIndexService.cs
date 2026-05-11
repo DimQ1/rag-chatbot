@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.ClientModel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -63,10 +64,10 @@ public class RagIndexService(
                     continue;
                 }
 
-                await RagVectorStore.DeleteAsync(
-                    _dbContext,
+                await DeleteDocumentVectorsAsync(
                     staleDocument.EmbeddingModelId,
                     staleDocument.DocumentId,
+                    staleDocument.EmbeddingJson,
                     cancellationToken);
             }
 
@@ -118,7 +119,7 @@ public class RagIndexService(
 
         if (!string.IsNullOrWhiteSpace(existing.EmbeddingModelId))
         {
-            await RagVectorStore.DeleteAsync(_dbContext, existing.EmbeddingModelId, normalizedId, cancellationToken);
+            await DeleteDocumentVectorsAsync(existing.EmbeddingModelId, normalizedId, existing.EmbeddingJson, cancellationToken);
         }
 
         _dbContext.RagVectorDocuments.Remove(existing);
@@ -160,28 +161,54 @@ public class RagIndexService(
             && !string.IsNullOrWhiteSpace(existing.EmbeddingModelId)
             && !string.Equals(existing.EmbeddingModelId, configuration.EmbeddingModelId, StringComparison.Ordinal))
         {
-            await RagVectorStore.DeleteAsync(_dbContext, existing.EmbeddingModelId, documentId, cancellationToken);
+            await DeleteDocumentVectorsAsync(existing.EmbeddingModelId, documentId, existing.EmbeddingJson, cancellationToken);
         }
 
-        var embedding = await GenerateEmbeddingAsync(configuration, content, cancellationToken);
-
-        if (embedding is not null)
+        if (existing is not null
+            && !string.IsNullOrWhiteSpace(existing.EmbeddingModelId)
+            && string.Equals(existing.EmbeddingModelId, configuration.EmbeddingModelId, StringComparison.Ordinal))
         {
-            var vectorCollection = RagVectorStore.CreateCollection(_dbContext, configuration.EmbeddingModelId, embedding.Length);
-            await vectorCollection.EnsureCollectionExistsAsync(cancellationToken);
-            await vectorCollection.UpsertAsync(new RagVectorStoreRecord
+            await DeleteDocumentVectorsAsync(existing.EmbeddingModelId, documentId, existing.EmbeddingJson, cancellationToken);
+        }
+
+        var chunks = ChunkContent(content);
+        var indexedChunks = new List<(string Key, string Content, float[] Embedding)>();
+
+        foreach (var chunk in chunks)
+        {
+            var embedding = await GenerateEmbeddingAsync(configuration, chunk, cancellationToken);
+            if (embedding is null)
             {
-                Key = documentId,
-                Title = title,
-                Url = url,
-                Content = content,
-                Embedding = embedding
-            }, cancellationToken);
+                continue;
+            }
+
+            indexedChunks.Add((GetChunkKey(documentId, indexedChunks.Count), chunk, embedding));
+        }
+
+        if (indexedChunks.Count > 0)
+        {
+            var vectorCollection = RagVectorStore.CreateCollection(_dbContext, configuration.EmbeddingModelId, indexedChunks[0].Embedding.Length);
+            await vectorCollection.EnsureCollectionExistsAsync(cancellationToken);
+
+            foreach (var chunk in indexedChunks)
+            {
+                await vectorCollection.UpsertAsync(new RagVectorStoreRecord
+                {
+                    Key = chunk.Key,
+                    Title = title,
+                    Url = url,
+                    Content = chunk.Content,
+                    Embedding = chunk.Embedding
+                }, cancellationToken);
+            }
         }
         else if (existing is not null && !string.IsNullOrWhiteSpace(existing.EmbeddingModelId))
         {
-            await RagVectorStore.DeleteAsync(_dbContext, existing.EmbeddingModelId, documentId, cancellationToken);
+            await DeleteDocumentVectorsAsync(existing.EmbeddingModelId, documentId, existing.EmbeddingJson, cancellationToken);
         }
+
+        var embeddingMetadata = CreateEmbeddingMetadata(indexedChunks.Count);
+        var embeddingModelId = indexedChunks.Count == 0 ? null : configuration.EmbeddingModelId;
 
         if (existing is null)
         {
@@ -192,8 +219,8 @@ public class RagIndexService(
                 Url = url,
                 Content = content,
                 ContentHash = contentHash,
-                EmbeddingJson = null,
-                EmbeddingModelId = embedding is null ? null : configuration.EmbeddingModelId,
+                EmbeddingJson = embeddingMetadata,
+                EmbeddingModelId = embeddingModelId,
                 SourceUpdatedAtUtc = sourceUpdatedAtUtc,
                 IndexedAtUtc = DateTime.UtcNow
             });
@@ -202,7 +229,7 @@ public class RagIndexService(
             return true;
         }
 
-        if (existing.ContentHash == contentHash && existing.SourceUpdatedAtUtc == sourceUpdatedAtUtc)
+        if (!forceReindex && existing.ContentHash == contentHash && existing.SourceUpdatedAtUtc == sourceUpdatedAtUtc)
         {
             return false;
         }
@@ -211,8 +238,8 @@ public class RagIndexService(
         existing.Url = url;
         existing.Content = content;
         existing.ContentHash = contentHash;
-        existing.EmbeddingJson = null;
-        existing.EmbeddingModelId = embedding is null ? null : configuration.EmbeddingModelId;
+        existing.EmbeddingJson = embeddingMetadata;
+        existing.EmbeddingModelId = embeddingModelId;
         existing.SourceUpdatedAtUtc = sourceUpdatedAtUtc;
         existing.IndexedAtUtc = DateTime.UtcNow;
 
@@ -386,6 +413,97 @@ public class RagIndexService(
             ? endpoint
             : null;
     }
+
+    private async Task DeleteDocumentVectorsAsync(
+        string embeddingModelId,
+        string documentId,
+        string? embeddingMetadataJson,
+        CancellationToken cancellationToken)
+    {
+        var chunkCount = TryGetChunkCount(embeddingMetadataJson);
+        if (chunkCount <= 0)
+        {
+            await RagVectorStore.DeleteAsync(_dbContext, embeddingModelId, documentId, cancellationToken);
+            await RagVectorStore.DeleteAsync(_dbContext, embeddingModelId, GetChunkKey(documentId, 0), cancellationToken);
+            return;
+        }
+
+        for (var index = 0; index < chunkCount; index++)
+        {
+            await RagVectorStore.DeleteAsync(_dbContext, embeddingModelId, GetChunkKey(documentId, index), cancellationToken);
+        }
+    }
+
+    private static List<string> ChunkContent(string content)
+    {
+        const int maxChunkLength = 1200;
+        const int overlapLength = 200;
+
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return [];
+        }
+
+        var normalized = content.Trim();
+        if (normalized.Length <= maxChunkLength)
+        {
+            return [normalized];
+        }
+
+        var chunks = new List<string>();
+        var start = 0;
+
+        while (start < normalized.Length)
+        {
+            var remaining = normalized.Length - start;
+            var length = Math.Min(maxChunkLength, remaining);
+            var chunk = normalized.Substring(start, length).Trim();
+
+            if (!string.IsNullOrWhiteSpace(chunk))
+            {
+                chunks.Add(chunk);
+            }
+
+            if (start + length >= normalized.Length)
+            {
+                break;
+            }
+
+            start += maxChunkLength - overlapLength;
+        }
+
+        return chunks;
+    }
+
+    private static string GetChunkKey(string documentId, int chunkIndex)
+    {
+        return $"{documentId}::chunk::{chunkIndex}";
+    }
+
+    private static string CreateEmbeddingMetadata(int chunkCount)
+    {
+        return JsonSerializer.Serialize(new EmbeddingMetadata(chunkCount));
+    }
+
+    private static int TryGetChunkCount(string? embeddingMetadataJson)
+    {
+        if (string.IsNullOrWhiteSpace(embeddingMetadataJson))
+        {
+            return 0;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<EmbeddingMetadata>(embeddingMetadataJson);
+            return parsed?.ChunkCount ?? 0;
+        }
+        catch (JsonException)
+        {
+            return 0;
+        }
+    }
+
+    private sealed record EmbeddingMetadata(int ChunkCount);
 }
 
 #pragma warning restore SKEXP0001

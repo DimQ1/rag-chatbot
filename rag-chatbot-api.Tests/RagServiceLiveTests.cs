@@ -84,8 +84,6 @@ public class RagServiceLiveTests
             var ragService = new RagService(
                 dbContext,
                 ragOptions,
-                new AgentSessionStore(),
-                new TestAgentSessionStateStore(),
                 loggerFactory.CreateLogger<RagService>());
 
             var response = await ragService.QueryAsync("Who built the house of bricks?", cancellationToken: default);

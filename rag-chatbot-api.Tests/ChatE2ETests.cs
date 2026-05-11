@@ -305,7 +305,7 @@ public sealed class TestRagService : IRagService
         _dbContext = dbContext;
     }
 
-    public async Task<RagQueryResponse> QueryAsync(string question, Guid? chatSessionId = null, CancellationToken cancellationToken = default)
+    public async Task<RagQueryResponse> QueryAsync(string question, Guid? chatSessionId = null, bool includeReasoning = false, CancellationToken cancellationToken = default)
     {
         var source = await _dbContext.RagSourceDocuments
             .AsNoTracking()

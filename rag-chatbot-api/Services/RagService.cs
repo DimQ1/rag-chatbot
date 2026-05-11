@@ -68,51 +68,17 @@ public class RagService(
             };
         }
 
-        var queryEmbedding = await TryGenerateEmbeddingAsync(configuration, question, cancellationToken);
-        if (queryEmbedding is null)
-        {
-            return new RagQueryResponse
-            {
-                Answer = "The embedding request failed. Verify the AI endpoint and embedding model configuration.",
-                Sources = []
-            };
-        }
-
-        var topK = Math.Clamp(configuration.TopK, 1, 10);
-        var retrieved = await RetrieveRelevantAsync(
-            queryEmbedding,
-            configuration.EmbeddingModelId,
-            topK,
+        var (answer, sources) = await GenerateAnswerAsync(
+            configuration,
+            question,
+            chatSessionId,
+            includeReasoning,
             cancellationToken);
-
-        if (retrieved is null)
-        {
-            return new RagQueryResponse
-            {
-                Answer = "The vector search request failed. Verify the SQLite vector extension is available and reprocess the knowledge base.",
-                Sources = []
-            };
-        }
-
-        if (retrieved.Count == 0)
-        {
-            return new RagQueryResponse
-            {
-                Answer = "I could not find any relevant knowledge documents for your question.",
-                Sources = []
-            };
-        }
-
-        var answer = await GenerateAnswerAsync(configuration, question, retrieved, chatSessionId, includeReasoning, cancellationToken);
 
         return new RagQueryResponse
         {
             Answer = answer,
-            Sources = retrieved.Select(d => new RagSource
-            {
-                Title = d.Title,
-                Url = $"/document/{Uri.EscapeDataString(d.DocumentId)}"
-            })
+            Sources = sources
         };
     }
 
@@ -153,16 +119,15 @@ public class RagService(
         }
     }
 
-    private async Task<string> GenerateAnswerAsync(
+    private async Task<(string Answer, List<RagSource> Sources)> GenerateAnswerAsync(
         RagRuntimeConfiguration configuration,
         string question,
-        IReadOnlyCollection<KnowledgeDocument> documents,
         Guid? chatSessionId,
         bool includeReasoning,
         CancellationToken cancellationToken)
     {
-        var context = string.Join("\n\n", documents.Select(d =>
-            $"Source: {d.Title} ({d.Url})\n{d.Content}"));
+        var topK = Math.Clamp(configuration.TopK, 1, 10);
+        var providerSources = new List<TextSearchProvider.TextSearchResult>();
 
         try
         {
@@ -171,18 +136,58 @@ public class RagService(
                 ? new OpenAIClientOptions()
                 : new OpenAIClientOptions { Endpoint = endpoint };
 
-            var responseStyleInstructions = includeReasoning
-                ? "Provide the final answer first. You may include a short, user-facing rationale when helpful. Do not reveal hidden chain-of-thought or internal notes."
-                : "Never output reasoning steps, analysis notes, or chain-of-thought. Return only the final user-facing answer.";
-
             var agentInstructions =
-                "You are a helpful assistant. Use only the provided context. " +
-                "When the question includes a session-memory block, you may use that memory to answer follow-up questions. " +
-                "If the answer is not present in the context, say you do not know. " +
+                "You are a helpful assistant. " +
+                "Use additional context from retrieved source documents when it is provided. " +
+                "If the answer is not available in context and conversation history, say you do not know. " +
+                "Answer only the latest user question and do not proactively answer earlier questions unless the user explicitly asks to revisit them. " +
                 "Translate your response to the language of the question if necessary. " +
                 "Format your response as Markdown. " +
-                responseStyleInstructions + " " +
                 "Respond naturally and directly, and avoid rigid templates unless the user explicitly asks for a specific format.";
+
+            async Task<IEnumerable<TextSearchProvider.TextSearchResult>> SearchAdapter(string searchQuery, CancellationToken ct)
+            {
+                var queryEmbedding = await TryGenerateEmbeddingAsync(configuration, searchQuery, ct);
+                if (queryEmbedding is null)
+                {
+                    return [];
+                }
+
+                var retrieved = await RetrieveRelevantAsync(
+                    queryEmbedding,
+                    configuration.EmbeddingModelId,
+                    topK,
+                    ct);
+
+                if (retrieved is null || retrieved.Count == 0)
+                {
+                    return [];
+                }
+
+                var searchResults = retrieved.Select(document => new TextSearchProvider.TextSearchResult
+                {
+                    SourceName = document.Title,
+                    SourceLink = document.Url,
+                    Text = document.Content
+                }).ToList();
+
+                lock (providerSources)
+                {
+                    providerSources.Clear();
+                    providerSources.AddRange(searchResults);
+                }
+
+                return searchResults;
+            }
+
+            TextSearchProviderOptions textSearchOptions = new()
+            {
+                SearchTime = TextSearchProviderOptions.TextSearchBehavior.BeforeAIInvoke,
+                RecentMessageMemoryLimit = chatSessionId.HasValue ? 3 : 0,
+                RecentMessageRolesIncluded = [ChatRole.User, ChatRole.Assistant],
+                ContextPrompt = "## Additional Context\nConsider the following information from source documents when responding to the user:",
+                CitationsPrompt = "Include citations to the source document with document name and link when available."
+            };
 
             var agent = new OpenAIClient(
                     new ApiKeyCredential(configuration.OpenAIApiKey),
@@ -194,27 +199,22 @@ public class RagService(
                         Name = "Help Assistant",
                         ChatOptions = new ChatOptions
                         {
-                            Instructions = agentInstructions
+                            Instructions = agentInstructions,
+                            Reasoning = new ReasoningOptions()
+                            {
+                                Effort = includeReasoning ? ReasoningEffort.ExtraHigh : ReasoningEffort.None,
+                                Output = includeReasoning ? ReasoningOutput.Full : ReasoningOutput.None
+                            }
                         },
+                        AIContextProviders = [new TextSearchProvider(SearchAdapter, textSearchOptions)],
                         ChatHistoryProvider = chatSessionId is Guid providerSessionId
                             ? new DbChatHistoryProvider(_dbContext, providerSessionId)
                             : null
                     });
 
-            var prompt =
-                $"""
-                Context:
-                {context}
-
-                Question: {question}
-                """;
-
-            var session = await agent.CreateSessionAsync(cancellationToken);
-
             var responseBuilder = new StringBuilder();
             await foreach (var update in agent.RunStreamingAsync(
-                prompt,
-                session,
+                question,
                 cancellationToken: cancellationToken))
             {
                 var hadTextInUpdate = false;
@@ -242,16 +242,45 @@ public class RagService(
             var content = responseBuilder.ToString();
             if (string.IsNullOrWhiteSpace(content))
             {
-                return "The AI model returned an empty response.";
+                return ("The AI model returned an empty response.", []);
             }
 
-            return SanitizeAssistantResponse(content);
+            var sources = providerSources
+                .Select(result => new RagSource
+                {
+                    Title = string.IsNullOrWhiteSpace(result.SourceName) ? "Knowledge Document" : result.SourceName,
+                    Url = NormalizeSourceLink(result.SourceLink)
+                })
+                .GroupBy(source => $"{source.Title}\n{source.Url}", StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            return (SanitizeAssistantResponse(content), sources);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "AI completion request failed.");
-            return "The AI completion request failed. Verify the AI endpoint and chat model configuration.";
+            return ("The AI completion request failed. Verify the AI endpoint and chat model configuration.", []);
         }
+    }
+
+    private static string NormalizeSourceLink(string? sourceLink)
+    {
+        if (string.IsNullOrWhiteSpace(sourceLink))
+        {
+            return string.Empty;
+        }
+
+        if (sourceLink.StartsWith("/", StringComparison.Ordinal))
+        {
+            return sourceLink;
+        }
+
+        return Uri.TryCreate(sourceLink, UriKind.RelativeOrAbsolute, out var uri)
+            ? uri.IsAbsoluteUri
+                ? sourceLink
+                : $"/{sourceLink.TrimStart('/')}"
+            : string.Empty;
     }
 
     private static Uri? TryResolveEndpoint(string? baseUrl)

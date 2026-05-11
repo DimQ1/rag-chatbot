@@ -120,7 +120,7 @@ public class ChatSessionController(
                 request.Question,
                 cancellationToken);
 
-            // Add user message
+            // Add user message before assistant generation so session history stays complete.
             await _chatSessionService.AddMessageToSessionAsync(
                 sessionId,
                 UserRole,

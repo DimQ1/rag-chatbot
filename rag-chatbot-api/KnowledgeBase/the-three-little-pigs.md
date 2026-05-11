@@ -1,72 +1,7 @@
 # The Three Little Pigs
 
-The Three Little Pigs
-
-Google Classroom
-Teams
-
-Copy Link
-This timeless tale of three little pigs and one big bad wolf has delighted children for generations. Adapted from Flora Annie Steel's English Fairy Tales (1922) with classic illustrations by L. Leslie Brooke, this version captures the charm and wisdom of the original story. Will the pigs outsmart the wolf?
-An illustration for The Three Little Pigs
-Once upon a time there was an old mother pig who had three little pigs and not enough food to feed them. So when they were old enough, she sent them out into the world to seek their fortunes.
-
-The first little pig was very lazy. He didn't want to work at all and he built his house out of straw. The second little pig worked a little bit harder but he was somewhat lazy too and he built his house out of sticks. Then, they sang and danced and played together the rest of the day.
-
-The third little pig worked hard all day and built his house with bricks. It was a sturdy house complete with a fine fireplace and chimney. It looked like it could withstand the strongest winds.
-
-The next day, a wolf happened to pass by the lane where the three little pigs lived; and he saw the straw house, and he smelled the pig inside. He thought the pig would make a mighty fine meal and his mouth began to water.
-
-So he knocked on the door and said:
-
-  Little pig! Little pig!
-  Let me in! Let me in!
-But the little pig saw the wolf's big paws through the keyhole, so he answered back:
-
-  No! No! No! 
-  Not by the hairs on my chinny chin chin!
-Three Little Pigs, the straw houseThen the wolf showed his teeth and said:
-
-  Then I'll huff 
-  and I'll puff 
-  and I'll blow your house down.
-So he huffed and he puffed and he blew the house down! The wolf opened his jaws very wide and bit down as hard as he could, but the first little pig escaped and ran away to hide with the second little pig.
-
-The wolf continued down the lane and he passed by the second house made of sticks; and he saw the house, and he smelled the pigs inside, and his mouth began to water as he thought about the fine dinner they would make.
-
-So he knocked on the door and said:
-
-  Little pigs! Little pigs!
-  Let me in! Let me in!
-But the little pigs saw the wolf's pointy ears through the keyhole, so they answered back:
-
-  No! No! No!
-  Not by the hairs on our chinny chin chin!
-So the wolf showed his teeth and said:
-
-  Then I'll huff 
-  and I'll puff 
-  and I'll blow your house down!
-So he huffed and he puffed and he blew the house down! The wolf was greedy and he tried to catch both pigs at once, but he was too greedy and got neither! His big jaws clamped down on nothing but air and the two little pigs scrambled away as fast as their little hooves would carry them.
-
-The wolf chased them down the lane and he almost caught them. But they made it to the brick house and slammed the door closed before the wolf could catch them. The three little pigs they were very frightened, they knew the wolf wanted to eat them. And that was very, very true. The wolf hadn't eaten all day and he had worked up a large appetite chasing the pigs around and now he could smell all three of them inside and he knew that the three little pigs would make a lovely feast.
-
-Three Little Pigs at the Brick House
-
-So the wolf knocked on the door and said:
-
-  Little pigs! Little pigs!
-  Let me in! Let me in!
-But the little pigs saw the wolf's narrow eyes through the keyhole, so they answered back:
-
-  No! No! No! 
-  Not by the hairs on our chinny chin chin!
-So the wolf showed his teeth and said:
-
-  Then I'll huff 
-  and I'll puff 
-  and I'll blow your house down.
-Well! he huffed and he puffed. He puffed and he huffed. And he huffed, huffed, and he puffed, puffed; but he could not blow the house down. At last, he was so out of breath that he couldn't huff and he couldn't puff anymore. So he stopped to rest and thought a bit.
-
-But this was too much. The wolf danced about with rage and swore he would come down the chimney and eat up the little pig for his supper. But while he was climbing on to the roof the little pig made up a blazing fire and put on a big pot full of water to boil. Then, just as the wolf was coming down the chimney, the little piggy pulled off the lid, and plop! in fell the wolf into the scalding water.
-
-So the little piggy put on the cover again, boiled the wolf up, and the three little pigs ate him for supper.
+The three little pigs are brothers. They are going into the forest. They want to build three houses. «Let’s build our houses here,» says the first little pig, Percy. «Yes,» says the second little pig, Peter. «That’s a good idea,» says the third little pig, Patrick. The first little pig, Percy, gets some straw and he starts to build a house of straw. He sings, «Hum de hum, dum de dum, hee de dum, dee de hum,» when he works. The second little pig, Peter, gets some wood and he starts to build a house of wood. He sings, «Hum de hum, dum de dum, hee de dum, dee de hum,» when he works. The third pig, Patrick, is very clever. He gets some bricks and he starts to build a house of bricks. He sings, «Hum de hum, dum de dum, hee de dum, dee de hum,» when he works. Now all the houses are ready. The three little pigs make a fence and they paint it red. 
+But a big bad wolf lives in the forest. Every day the wolf watches the pigs. He is hungry and he wants to eat them. He looks at the house of straw and he says, «I can smell a little pig. I want to eat him for my dinner,». The big bad wolf jumps over the red fence. He goes to the house of straw and he knocks on the door. «Can I come in, little pig? I’m not very big!» he says. But Percy sees it is a big bad wolf. He says, «Go away! You can’t come in. You’re a big bad wolf, you horrible thing.» But the wolf blows and blows and the house falls down. «Help!» shouts Percy. He runs to his brother Peter’s house. Now the wolf is very hungry. He wants his dinner. He runs to the house of wood and he knocks on the door. «Can I come in, little pigs? I’m not very big!» he says. But Percy and Peter say, «Go away! You can’t come in. You’re the big bad wolf, you horrible thing.» But the wolf blows and blows and the house falls down. «Help!» shout Percy and Peter. They run to their brother Patrick’s house. 
+Now the wolf runs to the house of bricks. The three little pigs are in the house. He knocks on the door. «Can I come in, little pigs? I’m not very big!» he says. Percy, Peter and Patrick say, «Go away! You can’t come in. You’re the big, bad wolf, you horrible thing.» The wolf blows and blows, and he blows and blows again, but the house doesn’t fall down. It’s a house of bricks and it’s very strong. The wolf sits down and thinks. «I can wait,» he says. The three little pigs, Percy, Peter and Patrick are in the house. They are hungry. «The wolf is waiting. We can’t go out. We can’t get dinner,» says Percy. «What can we do?» asks Peter. «Don’t be sad. It’s OK,» says the clever pig, Patrick. «I’ve got an idea. Let’s make a fire.» The three little pigs make a big fire. 
+The three little pigs are in the house. There is a lot of smoke from the fire. «Oh no! We can’t go out! What can we do?» says Peter. «It’s OK,» says Patrick, «Listen and watch…» He goes to the door and he shouts, «The wolf is waiting. He isn’t very clever. He can come down the chimney and eat us.» The wolf is listening. «That a good idea,» he thinks. «I’m a clever wolf,» thinks the big bad wolf. «I don’t want to wait here. I want to eat the pigs.» He goes down the chimney. The three little pigs hear the wolf in the chimney. They wait… there is a big CRASH! The big bad wolf falls into the fire! Oh dear! The poor wolf! 
+The three little pigs are very happy because the wolf is not there. They start to build a big new house. «Let’s make a house of bricks,» says Patrick. «Oh, yes. Straw and wood aren’t very good,» says Peter. «We don’t want this house to fall down!» says Percy. The three little pigs build a big new house. It’s very strong. They make a fence and they paint it red. They sing, «Hum de hum, dum de dum, hee de dum, dee de hum,» when they work. The End
