@@ -270,6 +270,8 @@
   align-items: flex-end;
   gap: 10px;
   animation: slideIn 0.3s ease-out;
+  min-width: 0;
+  max-width: 100%;
 
   &.user {
     flex-direction: row-reverse;
@@ -311,7 +313,9 @@
 }
 
 .bubble {
-  max-width: min(70%, 640px);
+  max-width: min(calc(100% - 52px), 640px);
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px 18px;
 
   .text {
@@ -319,10 +323,31 @@
     font-size: 15px;
     line-height: 1.6;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
     word-break: break-word;
 
     &.markdown {
+      display: block;
+      width: 100%;
       white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+
+      * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      p,
+      li,
+      blockquote,
+      td,
+      th {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
 
       :first-child {
         margin-top: 0;
@@ -336,13 +361,23 @@
       ul,
       ol,
       pre,
-      blockquote {
+      blockquote,
+      table,
+      .mermaid-diagram {
         margin: 0 0 10px;
+      }
+
+      p {
+        white-space: pre-wrap;
       }
 
       ul,
       ol {
         padding-left: 20px;
+      }
+
+      li + li {
+        margin-top: 4px;
       }
 
       code {
@@ -357,23 +392,101 @@
         color: #f9fafb;
         border-radius: 10px;
         padding: 10px 12px;
-        overflow-x: auto;
+        overflow-x: hidden;
+        max-width: 100%;
+        white-space: pre-wrap !important;
+        overflow-wrap: anywhere;
+        word-break: break-word;
 
         code {
+          display: block;
           background: transparent;
           color: inherit;
           padding: 0;
+          white-space: pre-wrap !important;
+          overflow-wrap: anywhere;
+          word-break: break-word;
         }
       }
 
       a {
         color: #1565c0;
+        overflow-wrap: anywhere;
       }
 
       blockquote {
         border-left: 3px solid #cbd5e0;
         padding-left: 10px;
         color: #4a5568;
+      }
+
+      table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        border-spacing: 0;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border: 1px solid #d7dee8;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f7fafc;
+        font-weight: 700;
+      }
+
+      .mermaid-diagram {
+        max-width: 100%;
+        overflow-x: hidden;
+        padding: 8px;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+
+        svg {
+          display: block;
+          max-width: 100%;
+          height: auto;
+          margin: 0 auto;
+        }
+
+        pre {
+          margin: 0;
+        }
+
+        &.mermaid-diagram-error {
+          border-color: #fed7d7;
+          background: #fff5f5;
+
+          .mermaid-diagram-fallback {
+            p {
+              margin: 0 0 8px;
+              color: #822727;
+            }
+
+            details {
+              margin-top: 8px;
+            }
+
+            summary {
+              cursor: pointer;
+              font-weight: 600;
+              color: #742a2a;
+            }
+
+            pre {
+              margin-top: 8px;
+              background: #2d3748;
+            }
+          }
+        }
       }
     }
   }
@@ -456,6 +569,42 @@
       }
     }
   }
+}
+
+:host ::ng-deep .message.assistant .bubble .text.markdown {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+:host ::ng-deep .message.assistant .bubble .text.markdown p,
+:host ::ng-deep .message.assistant .bubble .text.markdown li,
+:host ::ng-deep .message.assistant .bubble .text.markdown blockquote,
+:host ::ng-deep .message.assistant .bubble .text.markdown td,
+:host ::ng-deep .message.assistant .bubble .text.markdown th,
+:host ::ng-deep .message.assistant .bubble .text.markdown summary,
+:host ::ng-deep .message.assistant .bubble .text.markdown code,
+:host ::ng-deep .message.assistant .bubble .text.markdown pre,
+:host ::ng-deep .message.assistant .bubble .text.markdown .mermaid-diagram,
+:host ::ng-deep .message.assistant .bubble .text.markdown .mermaid-diagram-fallback {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+:host ::ng-deep .message.assistant .bubble .text.markdown p,
+:host ::ng-deep .message.assistant .bubble .text.markdown li,
+:host ::ng-deep .message.assistant .bubble .text.markdown blockquote,
+:host ::ng-deep .message.assistant .bubble .text.markdown td,
+:host ::ng-deep .message.assistant .bubble .text.markdown th {
+  white-space: pre-wrap;
+}
+
+:host ::ng-deep .message.assistant .bubble .text.markdown pre,
+:host ::ng-deep .message.assistant .bubble .text.markdown pre code {
+  white-space: pre-wrap;
+  overflow-x: hidden;
 }
 
 @keyframes slideIn {

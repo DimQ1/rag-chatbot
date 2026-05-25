@@ -103,7 +103,7 @@
 
           <div class="bubble">
             @if (msg.role === 'assistant') {
-              <div class="text markdown" [innerHTML]="renderAssistantMessage(msg.content)"></div>
+              <div class="text markdown" [appMarkdownContent]="msg.content"></div>
             } @else {
               <p class="text">{{ msg.content }}</p>
             }

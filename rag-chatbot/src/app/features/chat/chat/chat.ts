@@ -1,7 +1,6 @@
 import { Component, inject, signal, ElementRef, ViewChild, HostListener, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { distinctUntilChanged } from 'rxjs';
-import { marked } from 'marked';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormControl, Validators } from '@angular/forms';
 import { CdkTextareaAutosize } from '@angular/cdk/text-field';
@@ -17,6 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { ChatService, ChatMessage } from '../../../core/services/chat';
 import { AuthService } from '../../../core/services/auth';
+import { MarkdownContentDirective } from '../../../shared/directives/markdown-content';
 import { SessionsListComponent } from '../sessions-list/sessions-list';
 
 @Component({
@@ -35,6 +35,7 @@ import { SessionsListComponent } from '../sessions-list/sessions-list';
     MatToolbarModule,
     MatTooltipModule,
     MatMenuModule,
+    MarkdownContentDirective,
     RouterLink,
     SessionsListComponent,
   ],
@@ -66,7 +67,6 @@ export class Chat {
   private isResizingSidebar = false;
 
   private readonly questionHistory: string[] = [];
-  private readonly markdownCache = new Map<string, string>();
   private historyPosition = -1;
   private pendingDraft = '';
   private shouldScrollAfterSessionLoad = false;
@@ -253,27 +253,6 @@ export class Chat {
 
   trackById(_: number, msg: ChatMessage): string {
     return msg.id;
-  }
-
-  renderAssistantMessage(content: string): string {
-    if (!content) {
-      return '';
-    }
-
-    const cached = this.markdownCache.get(content);
-    if (cached) {
-      return cached;
-    }
-
-    const parsed = marked.parse(content, {
-      async: false,
-      breaks: true,
-      gfm: true,
-    });
-
-    const rendered = typeof parsed === 'string' ? parsed : content;
-    this.markdownCache.set(content, rendered);
-    return rendered;
   }
 
   resolveSourceUrl(url: string): string {

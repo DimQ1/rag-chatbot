@@ -1,0 +1,10 @@
+{
+  // Angular CLI MCP server for the Angular app in rag-chatbot/.
+  // For more information, visit: https://angular.dev/ai/mcp
+  "servers": {
+    "angular-cli": {
+      "command": "npx",
+      "args": ["-y", "--prefix", "${workspaceFolder}/rag-chatbot", "@angular/cli", "mcp"]
+    }
+  }
+}
