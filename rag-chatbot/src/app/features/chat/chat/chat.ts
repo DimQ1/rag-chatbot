@@ -59,6 +59,7 @@ export class Chat {
   readonly sessionsPanelOpen = signal(true);
   readonly sidebarWidth = signal(320);
   readonly includeReasoning = signal(this.loadIncludeReasoningPreference());
+  readonly isSending = signal(false);
 
   private readonly sidebarMinWidth = 260;
   private readonly sidebarMaxWidth = 520;
@@ -165,7 +166,9 @@ export class Chat {
 
   send(): void {
     const question = this.inputControl.value?.trim();
-    if (!question || this.inputControl.invalid || this.isCurrentSessionThinking()) return;
+    if (!question || this.inputControl.invalid || this.isSending() || this.isCurrentSessionThinking()) return;
+
+    this.isSending.set(true);
 
     const sessionId = this.chatService.currentSessionId$Value;
     if (!sessionId) {
@@ -184,6 +187,7 @@ export class Chat {
         },
         error: (err) => {
           console.error('Failed to create session:', err);
+          this.isSending.set(false);
         },
       });
     } else {
@@ -205,11 +209,13 @@ export class Chat {
         this.chatService.loadSessionDetail(sessionId, { setAsCurrent: false });
         this.chatService.loadSessions();
         this.chatService.setThinkingSession(null);
+        this.isSending.set(false);
       },
       error: (err) => {
         console.error('Failed to send message:', err);
         this.chatService.addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
         this.chatService.setThinkingSession(null);
+        this.isSending.set(false);
       },
     });
   }

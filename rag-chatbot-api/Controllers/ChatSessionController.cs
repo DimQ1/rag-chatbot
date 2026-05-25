@@ -107,6 +107,8 @@ public class ChatSessionController(
         if (string.IsNullOrWhiteSpace(request.Question))
             return BadRequest(new { message = "Question is required." });
 
+        var question = request.Question.Trim();
+
         try
         {
             // Verify session belongs to user
@@ -114,23 +116,9 @@ public class ChatSessionController(
             if (session == null)
                 return NotFound(new { message = "Chat session not found." });
 
-            var sessionAwareQuestion = await _chatSessionService.BuildSessionAwareQuestionAsync(
-                sessionId,
-                userId,
-                request.Question,
-                cancellationToken);
-
-            // Add user message before assistant generation so session history stays complete.
-            await _chatSessionService.AddMessageToSessionAsync(
-                sessionId,
-                UserRole,
-                request.Question,
-                null,
-                cancellationToken);
-
             // Get RAG response
             var ragResponse = await _ragService.QueryAsync(
-                sessionAwareQuestion,
+                question,
                 sessionId,
                 request.IncludeReasoning,
                 cancellationToken);
@@ -142,7 +130,13 @@ public class ChatSessionController(
                 Url = s.Url
             }).ToList();
 
-            // Add assistant message
+            await _chatSessionService.AddMessageToSessionAsync(
+                sessionId,
+                UserRole,
+                question,
+                null,
+                cancellationToken);
+
             await _chatSessionService.AddMessageToSessionAsync(
                 sessionId,
                 AssistantRole,
@@ -154,7 +148,7 @@ public class ChatSessionController(
             if (session.MessageCount == 0)
             {
                 var topic = await _chatSessionService.GenerateTopicAsync(
-                    request.Question,
+                    question,
                     ragResponse.Answer,
                     cancellationToken);
 

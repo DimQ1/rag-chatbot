@@ -230,7 +230,10 @@ public class ChatE2ETests : IClassFixture<ChatApiFactory>
         var lastAssistantMessage = detail.Messages[^1];
         Assert.Equal("assistant", lastAssistantMessage.Role);
         Assert.False(string.IsNullOrWhiteSpace(lastAssistantMessage.Content));
+        Assert.Contains($"Question seen by RAG: {secondQuestion}.", lastAssistantMessage.Content, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(firstQuestion, lastAssistantMessage.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Session memory (last", lastAssistantMessage.Content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Current user question:", lastAssistantMessage.Content, StringComparison.OrdinalIgnoreCase);
     }
 }
 
@@ -307,6 +310,19 @@ public sealed class TestRagService : IRagService
 
     public async Task<RagQueryResponse> QueryAsync(string question, Guid? chatSessionId = null, bool includeReasoning = false, CancellationToken cancellationToken = default)
     {
+        var previousUserQuestions = chatSessionId is Guid sessionId
+            ? await _dbContext.ChatSessionMessages
+                .AsNoTracking()
+                .Where(m => m.SessionId == sessionId && m.Role == "user")
+                .OrderBy(m => m.MessageOrder)
+                .Select(m => m.Content)
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var previousQuestionsText = previousUserQuestions.Count == 0
+            ? "none"
+            : string.Join(" | ", previousUserQuestions);
+
         var source = await _dbContext.RagSourceDocuments
             .AsNoTracking()
             .OrderByDescending(d => d.UpdatedAtUtc)
@@ -323,7 +339,7 @@ public sealed class TestRagService : IRagService
 
         return new RagQueryResponse
         {
-            Answer = $"Question seen by RAG: {question}. Based on test knowledge: {source.Content}",
+            Answer = $"Question seen by RAG: {question}. Previous session questions: {previousQuestionsText}. Based on test knowledge: {source.Content}",
             Sources =
             [
                 new RagSource

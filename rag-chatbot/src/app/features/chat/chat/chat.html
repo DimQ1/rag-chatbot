@@ -169,7 +169,7 @@
       mat-fab
       class="send-btn"
       (click)="send()"
-      [disabled]="inputControl.invalid || isCurrentSessionThinking()"
+      [disabled]="inputControl.invalid || isSending() || isCurrentSessionThinking()"
       aria-label="Send message"
       matTooltip="Send"
     >

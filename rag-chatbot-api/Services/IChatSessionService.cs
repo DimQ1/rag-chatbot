@@ -8,7 +8,6 @@ public interface IChatSessionService
     Task<ChatSession> CreateSessionAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<ChatSessionResponse?> GetSessionAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
     Task<ChatSessionDetailResponse?> GetSessionDetailAsync(Guid sessionId, Guid userId, CancellationToken cancellationToken = default);
-    Task<string> BuildSessionAwareQuestionAsync(Guid sessionId, Guid userId, string question, CancellationToken cancellationToken = default);
     Task<List<ChatSessionResponse>> GetUserSessionsAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<bool> RenameSessionAsync(Guid sessionId, Guid userId, string newTopic, CancellationToken cancellationToken = default);
     Task<bool> PinSessionAsync(Guid sessionId, Guid userId, bool isPinned, CancellationToken cancellationToken = default);
