@@ -1,4 +1,4 @@
-import { Component, inject, signal, ElementRef, ViewChild, HostListener, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, ElementRef, ViewChild, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { distinctUntilChanged } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -21,7 +21,11 @@ import { SessionsListComponent } from '../sessions-list/sessions-list';
 
 @Component({
   selector: 'app-chat',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(window:mousemove)': 'onWindowMouseMove($event)',
+    '(window:mouseup)': 'stopSidebarResize()',
+  },
   imports: [
     CommonModule,
     ReactiveFormsModule,
@@ -119,12 +123,9 @@ export class Chat {
     }
 
     event.preventDefault();
-    this.isResizingSidebar = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
+    this.setSidebarResizeState(true);
   }
 
-  @HostListener('window:mousemove', ['$event'])
   onWindowMouseMove(event: MouseEvent): void {
     if (!this.isResizingSidebar) {
       return;
@@ -136,15 +137,12 @@ export class Chat {
     this.sidebarWidth.set(nextWidth);
   }
 
-  @HostListener('window:mouseup')
   stopSidebarResize(): void {
     if (!this.isResizingSidebar) {
       return;
     }
 
-    this.isResizingSidebar = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
+    this.setSidebarResizeState(false);
   }
 
   createNewChat(): void {
@@ -152,7 +150,7 @@ export class Chat {
       next: (session) => {
         this.chatService.setCurrentSession(session.id);
         this.chatService.clearMessages();
-        this.chatService.loadSessions();
+        this.refreshSessions();
       },
       error: (err) => {
         console.error('Failed to create session:', err);
@@ -207,7 +205,7 @@ export class Chat {
       next: () => {
         // Reload the session to get the updated messages
         this.chatService.loadSessionDetail(sessionId, { setAsCurrent: false });
-        this.chatService.loadSessions();
+        this.refreshSessions();
         this.chatService.setThinkingSession(null);
         this.isSending.set(false);
       },
@@ -349,5 +347,19 @@ export class Chat {
   private loadIncludeReasoningPreference(): boolean {
     const saved = localStorage.getItem(this.includeReasoningStorageKey);
     return saved === 'true';
+  }
+
+  private refreshSessions(): void {
+    this.chatService.loadSessions().subscribe({
+      error: (err) => {
+        console.error('Failed to refresh sessions:', err);
+      },
+    });
+  }
+
+  private setSidebarResizeState(isResizing: boolean): void {
+    this.isResizingSidebar = isResizing;
+    document.body.style.cursor = isResizing ? 'col-resize' : '';
+    document.body.style.userSelect = isResizing ? 'none' : '';
   }
 }

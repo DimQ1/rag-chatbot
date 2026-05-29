@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -8,7 +8,7 @@ import { RagDocumentResponse, RagService } from '../../../core/services/rag';
 
 @Component({
   selector: 'app-document-viewer',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, RouterLink, MatToolbarModule, MatIconModule, MatButtonModule],
   templateUrl: './document-viewer.html',
   styleUrl: './document-viewer.scss',

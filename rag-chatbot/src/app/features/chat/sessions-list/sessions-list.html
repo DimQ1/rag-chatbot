@@ -7,6 +7,7 @@
         matTooltip="New Chat"
         (click)="createNewSession()"
         [disabled]="loading()"
+        aria-label="Start new chat"
         class="new-chat-btn"
       >
         <mat-icon>add_circle_outline</mat-icon>
@@ -14,78 +15,104 @@
     </div>
   </div>
 
-  <div class="sessions-list" *ngIf="!loading()">
-    <div class="sessions-items" *ngIf="(sessions | async)?.length; else noSessions">
-      <div
-        *ngFor="let session of sessions | async"
-        [class.active]="(currentSessionId | async) === session.id"
-        (click)="selectSession(session.id)"
-        class="session-item"
-      >
-        <div class="session-content" title="{{ session.topic }}">
-          <mat-icon *ngIf="session.isPinned" class="pin-icon">push_pin</mat-icon>
-          <span class="session-topic">{{ session.topic }}</span>
-          <span class="thinking-indicator" *ngIf="(currentThinkingSessionId | async) === session.id" aria-label="Assistant is thinking" title="Assistant is thinking">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </span>
-        </div>
-
-        <div class="session-actions" (click)="$event.stopPropagation()">
+  @if (!loading()) {
+    <div class="sessions-list">
+      @if (errorMessage()) {
+        <div class="no-sessions" role="status" aria-live="polite">
+          <mat-icon color="warn">error_outline</mat-icon>
+          <p>{{ errorMessage() }}</p>
           <button
-            mat-icon-button
-            [matMenuTriggerFor]="menu"
-            class="menu-btn"
+            mat-raised-button
+            color="primary"
+            (click)="loadSessions()"
           >
-            <mat-icon>more_vert</mat-icon>
+            Retry
           </button>
-
-          <mat-menu #menu="matMenu">
-            <button
-              mat-menu-item
-              (click)="togglePin($event, session.id, session.isPinned)"
-            >
-              <mat-icon>{{ session.isPinned ? 'push_pin' : 'pin_outline' }}</mat-icon>
-              <span>{{ session.isPinned ? 'Unpin' : 'Pin' }}</span>
-            </button>
-            <button
-              mat-menu-item
-              (click)="openRenameDialog($event, session)"
-            >
-              <mat-icon>edit</mat-icon>
-              <span>Rename</span>
-            </button>
-            <mat-divider></mat-divider>
-            <button
-              mat-menu-item
-              (click)="deleteSession($event, session.id)"
-              class="delete-btn"
-            >
-              <mat-icon color="warn">delete</mat-icon>
-              <span>Delete</span>
-            </button>
-          </mat-menu>
         </div>
-      </div>
+      } @else {
+        @if (sessions | async; as sessionList) {
+          @if (sessionList.length) {
+            <div class="sessions-items">
+              @for (session of sessionList; track session.id) {
+                <div
+                  class="session-item"
+                  [class.active]="(currentSessionId | async) === session.id"
+                  (click)="selectSession(session.id)"
+                >
+                  <div class="session-content" [title]="session.topic">
+                    @if (session.isPinned) {
+                      <mat-icon class="pin-icon">push_pin</mat-icon>
+                    }
+                    <span class="session-topic">{{ session.topic }}</span>
+                    @if ((currentThinkingSessionId | async) === session.id) {
+                      <span class="thinking-indicator" aria-label="Assistant is thinking" title="Assistant is thinking">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                      </span>
+                    }
+                  </div>
+
+                  <div class="session-actions" (click)="$event.stopPropagation()">
+                    <button
+                      mat-icon-button
+                      [matMenuTriggerFor]="menu"
+                      aria-label="Open session actions"
+                      class="menu-btn"
+                    >
+                      <mat-icon>more_vert</mat-icon>
+                    </button>
+
+                    <mat-menu #menu="matMenu">
+                      <button
+                        mat-menu-item
+                        (click)="togglePin($event, session.id, session.isPinned)"
+                      >
+                        <mat-icon>{{ session.isPinned ? 'push_pin' : 'pin_outline' }}</mat-icon>
+                        <span>{{ session.isPinned ? 'Unpin' : 'Pin' }}</span>
+                      </button>
+                      <button
+                        mat-menu-item
+                        (click)="openRenameDialog($event, session)"
+                      >
+                        <mat-icon>edit</mat-icon>
+                        <span>Rename</span>
+                      </button>
+                      <mat-divider></mat-divider>
+                      <button
+                        mat-menu-item
+                        (click)="deleteSession($event, session.id)"
+                        class="delete-btn"
+                      >
+                        <mat-icon color="warn">delete</mat-icon>
+                        <span>Delete</span>
+                      </button>
+                    </mat-menu>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="no-sessions">
+              <mat-icon>chat_bubble_outline</mat-icon>
+              <p>No chat sessions yet</p>
+              <button
+                mat-raised-button
+                color="primary"
+                (click)="createNewSession()"
+              >
+                Start New Chat
+              </button>
+            </div>
+          }
+        }
+      }
     </div>
+  }
 
-    <ng-template #noSessions>
-      <div class="no-sessions">
-        <mat-icon>chat_bubble_outline</mat-icon>
-        <p>No chat sessions yet</p>
-        <button
-          mat-raised-button
-          color="primary"
-          (click)="createNewSession()"
-        >
-          Start New Chat
-        </button>
-      </div>
-    </ng-template>
-  </div>
-
-  <div class="loading" *ngIf="loading()">
+  @if (loading()) {
+    <div class="loading" role="status" aria-live="polite" aria-label="Loading chat sessions">
     <mat-spinner diameter="30"></mat-spinner>
-  </div>
+    </div>
+  }
 </div>
