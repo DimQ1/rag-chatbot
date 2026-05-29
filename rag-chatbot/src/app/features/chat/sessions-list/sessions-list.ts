@@ -1,5 +1,6 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { finalize } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -14,7 +15,7 @@ import { RenameSessionDialogComponent } from './rename-session-dialog/rename-ses
 
 @Component({
   selector: 'app-sessions-list',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     MatButtonModule,
@@ -38,6 +39,7 @@ export class SessionsListComponent implements OnInit {
   readonly currentSessionId = this.chatService.currentSessionId;
   readonly currentThinkingSessionId = this.chatService.currentThinkingSessionId;
   readonly loading = signal(false);
+  readonly errorMessage = signal('');
 
   ngOnInit(): void {
     this.loadSessions();
@@ -45,9 +47,16 @@ export class SessionsListComponent implements OnInit {
 
   loadSessions(): void {
     this.loading.set(true);
-    this.chatService.loadSessions();
-    // Simulate loading completion after a short delay
-    setTimeout(() => this.loading.set(false), 500);
+    this.errorMessage.set('');
+
+    this.chatService.loadSessions()
+      .pipe(finalize(() => this.loading.set(false)))
+      .subscribe({
+        error: (err) => {
+          this.errorMessage.set(err?.error?.message ?? 'Failed to load chat sessions.');
+          console.error('Failed to load sessions:', err);
+        },
+      });
   }
 
   createNewSession(): void {

@@ -1,7 +1,8 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, Injector, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { environment } from '../../../environments/environment.development';
+import { Observable, tap } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 export type MessageRole = 'user' | 'assistant';
 
@@ -44,33 +45,39 @@ export interface ChatSessionDetail extends ChatSession {
 })
 export class ChatService {
   private readonly http = inject(HttpClient);
+  private readonly injector = inject(Injector);
   private readonly apiUrl = `${environment.apiUrl}/chatsession`;
 
-  private readonly messages$ = new BehaviorSubject<ChatMessage[]>([]);
-  private readonly sessions$ = new BehaviorSubject<ChatSession[]>([]);
-  private readonly currentSessionId$ = new BehaviorSubject<string | null>(null);
-  private readonly currentThinkingSessionId$ = new BehaviorSubject<string | null>(null);
+  private readonly messagesState = signal<ChatMessage[]>([]);
+  private readonly sessionsState = signal<ChatSession[]>([]);
+  private readonly currentSessionIdState = signal<string | null>(null);
+  private readonly currentThinkingSessionIdState = signal<string | null>(null);
 
-  readonly messages = this.messages$.asObservable();
-  readonly sessions = this.sessions$.asObservable();
-  readonly currentSessionId = this.currentSessionId$.asObservable();
-  readonly currentThinkingSessionId = this.currentThinkingSessionId$.asObservable();
+  readonly messagesSignal = this.messagesState.asReadonly();
+  readonly sessionsSignal = this.sessionsState.asReadonly();
+  readonly currentSessionIdSignal = this.currentSessionIdState.asReadonly();
+  readonly currentThinkingSessionIdSignal = this.currentThinkingSessionIdState.asReadonly();
+
+  readonly messages = toObservable(this.messagesState, { injector: this.injector });
+  readonly sessions = toObservable(this.sessionsState, { injector: this.injector });
+  readonly currentSessionId = toObservable(this.currentSessionIdState, { injector: this.injector });
+  readonly currentThinkingSessionId = toObservable(this.currentThinkingSessionIdState, { injector: this.injector });
 
   // Get current values
   get currentSessionId$Value(): string | null {
-    return this.currentSessionId$.value;
+    return this.currentSessionIdState();
   }
 
   get currentThinkingSessionId$Value(): string | null {
-    return this.currentThinkingSessionId$.value;
+    return this.currentThinkingSessionIdState();
   }
 
   get messagesList(): ChatMessage[] {
-    return this.messages$.value;
+    return this.messagesState();
   }
 
   get sessionsList(): ChatSession[] {
-    return this.sessions$.value;
+    return this.sessionsState();
   }
 
   addMessage(role: MessageRole, content: string, sources?: { title: string; url: string }[]): void {
@@ -81,11 +88,11 @@ export class ChatService {
       sources,
       timestamp: new Date(),
     };
-    this.messages$.next([...this.messages$.value, msg]);
+    this.messagesState.update((messages) => [...messages, msg]);
   }
 
   clearMessages(): void {
-    this.messages$.next([]);
+    this.messagesState.set([]);
   }
 
   // Session management
@@ -100,33 +107,28 @@ export class ChatService {
     return this.http.get<ChatSession[]>(this.apiUrl);
   }
 
-  loadSessions(): void {
-    this.getSessions().subscribe({
-      next: (sessions) => {
-        this.sessions$.next(sessions);
+  loadSessions(): Observable<ChatSession[]> {
+    return this.getSessions().pipe(tap((sessions) => {
+      this.sessionsState.set(sessions);
 
-        const currentSessionId = this.currentSessionId$.value;
-        if (!currentSessionId) {
-          if (sessions.length > 0) {
-            this.loadSessionDetail(sessions[0].id);
-          }
-
-          return;
+      const currentSessionId = this.currentSessionIdState();
+      if (!currentSessionId) {
+        if (sessions.length > 0) {
+          this.loadSessionDetail(sessions[0].id);
         }
 
-        const currentSessionStillExists = sessions.some((session) => session.id === currentSessionId);
-        if (!currentSessionStillExists) {
-          if (sessions.length > 0) {
-            this.loadSessionDetail(sessions[0].id);
-          } else {
-            this.setCurrentSession(null);
-          }
+        return;
+      }
+
+      const currentSessionStillExists = sessions.some((session) => session.id === currentSessionId);
+      if (!currentSessionStillExists) {
+        if (sessions.length > 0) {
+          this.loadSessionDetail(sessions[0].id);
+        } else {
+          this.setCurrentSession(null);
         }
-      },
-      error: (err) => {
-        console.error('Failed to load sessions:', err);
-      },
-    });
+      }
+    }));
   }
 
   getSessionDetail(sessionId: string): Observable<ChatSessionDetail> {
@@ -139,7 +141,7 @@ export class ChatService {
     this.getSessionDetail(sessionId).subscribe({
       next: (session) => {
         if (setAsCurrent) {
-          this.currentSessionId$.next(sessionId);
+          this.currentSessionIdState.set(sessionId);
         }
 
         const messages: ChatMessage[] = session.messages.map(m => ({
@@ -150,8 +152,8 @@ export class ChatService {
           timestamp: new Date(m.createdAtUtc),
         }));
 
-        if (setAsCurrent || this.currentSessionId$.value === sessionId) {
-          this.messages$.next(messages);
+        if (setAsCurrent || this.currentSessionIdState() === sessionId) {
+          this.messagesState.set(messages);
         }
       },
       error: (err) => {
@@ -186,13 +188,13 @@ export class ChatService {
   }
 
   setCurrentSession(sessionId: string | null): void {
-    this.currentSessionId$.next(sessionId);
+    this.currentSessionIdState.set(sessionId);
     if (!sessionId) {
       this.clearMessages();
     }
   }
 
   setThinkingSession(sessionId: string | null): void {
-    this.currentThinkingSessionId$.next(sessionId);
+    this.currentThinkingSessionIdState.set(sessionId);
   }
 }

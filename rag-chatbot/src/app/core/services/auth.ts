@@ -1,7 +1,8 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, Injector, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, map, tap } from 'rxjs';
+import { Observable, map, tap } from 'rxjs';
 import { SocialAuthService, SocialUser } from '@abacritt/angularx-social-login';
 import { environment } from '../../../environments/environment';
 
@@ -35,23 +36,25 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
   private readonly socialAuth = inject(SocialAuthService);
+  private readonly injector = inject(Injector);
 
   private readonly TOKEN_KEY = 'auth_token';
-  private readonly currentUser$ = new BehaviorSubject<AuthUser | null>(null);
-  private readonly googleAuthError$ = new BehaviorSubject<string>('');
+  private readonly currentUserState = signal<AuthUser | null>(null);
+  private readonly googleAuthErrorState = signal('');
 
-  readonly user$ = this.currentUser$.asObservable();
-  readonly googleAuthError = this.googleAuthError$.asObservable();
+  readonly user = this.currentUserState.asReadonly();
+  readonly user$ = toObservable(this.currentUserState, { injector: this.injector });
+  readonly googleAuthError = toObservable(this.googleAuthErrorState, { injector: this.injector });
 
   get currentUser() {
-    return this.currentUser$.value;
+    return this.currentUserState();
   }
 
   constructor() {
     const stored = localStorage.getItem(this.TOKEN_KEY);
     if (stored) {
       const user: AuthUser = JSON.parse(stored);
-      this.currentUser$.next(user);
+      this.currentUserState.set(user);
     }
 
     // Exchange Google ID token for backend JWT.
@@ -82,21 +85,21 @@ export class AuthService {
 
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
-    this.currentUser$.next(null);
+    this.currentUserState.set(null);
     this.socialAuth.signOut().catch(() => {});
     this.router.navigate(['/login']);
   }
 
   getToken(): string | null {
-    return this.currentUser$.value?.token ?? null;
+    return this.currentUserState()?.token ?? null;
   }
 
   isLoggedIn(): boolean {
-    return !!this.currentUser$.value;
+    return !!this.currentUserState();
   }
 
   isAdmin(): boolean {
-    return this.currentUser$.value?.role === 'Admin';
+    return this.currentUserState()?.role === 'Admin';
   }
 
   refreshCurrentUser(): Observable<AuthUser> {
@@ -118,7 +121,7 @@ export class AuthService {
   }
 
   private handleGoogleUser(socialUser: SocialUser): void {
-    this.googleAuthError$.next('');
+    this.googleAuthErrorState.set('');
     this.http
       .post<AuthUser>(`${environment.apiUrl}/auth/google`, {
         idToken: socialUser.idToken,
@@ -130,7 +133,7 @@ export class AuthService {
         },
         error: (err) => {
           const message = err?.error?.message ?? 'Google sign-in failed. Please try again.';
-          this.googleAuthError$.next(message);
+          this.googleAuthErrorState.set(message);
           this.socialAuth.signOut().catch(() => {});
         },
       });
@@ -138,6 +141,6 @@ export class AuthService {
 
   private persist(user: AuthUser): void {
     localStorage.setItem(this.TOKEN_KEY, JSON.stringify(user));
-    this.currentUser$.next(user);
+    this.currentUserState.set(user);
   }
 }
