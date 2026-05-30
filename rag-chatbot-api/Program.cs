@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using rag_chatbot_api.Data;
+using rag_chatbot_api.Middleware;
 using rag_chatbot_api.Options;
 using rag_chatbot_api.Services;
+using rag_chatbot_api.Services.Logging;
 
 const string AngularCorsPolicy = "AngularApp";
 
@@ -13,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 ConfigureOptions(builder.Services, builder.Configuration);
 ConfigureDataAccess(builder.Services, builder.Configuration);
 ConfigureApplicationServices(builder.Services);
+ConfigureLogging(builder.Services, builder.Logging);
 ConfigureCors(builder.Services);
 ConfigureAuthentication(builder.Services, ResolveJwtOptions(builder.Configuration));
 
@@ -57,6 +60,18 @@ static void ConfigureApplicationServices(IServiceCollection services)
     services.AddScoped<IAgentSessionStateStore, DbAgentSessionStateStore>();
 }
 
+static void ConfigureLogging(IServiceCollection services, ILoggingBuilder logging)
+{
+    services.AddHttpContextAccessor();
+    services.AddSingleton<SqliteLogStore>();
+    logging.Services.AddSingleton<ILoggerProvider, SqliteLoggerProvider>();
+
+    logging.AddFilter<SqliteLoggerProvider>(null, LogLevel.Information);
+    logging.AddFilter<SqliteLoggerProvider>("Microsoft", LogLevel.Warning);
+    logging.AddFilter<SqliteLoggerProvider>("System", LogLevel.Warning);
+    logging.AddFilter<SqliteLoggerProvider>("rag_chatbot_api.Middleware.RequestLoggingMiddleware", LogLevel.None);
+}
+
 static void ConfigureCors(IServiceCollection services)
 {
     services.AddCors(options =>
@@ -96,6 +111,7 @@ static void ConfigureHttpPipeline(WebApplication app)
     }
 
     app.UseCors(AngularCorsPolicy);
+    app.UseMiddleware<RequestLoggingMiddleware>();
     app.UseAuthentication();
     app.UseAuthorization();
 

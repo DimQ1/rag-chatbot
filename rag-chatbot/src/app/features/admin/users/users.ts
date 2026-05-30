@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { AdminDocument, AdminRagConfiguration, AdminService, AdminUser } from '../../../core/services/admin/admin';
+import { AdminDocument, AdminLogEntry, AdminLogQueryResponse, AdminRagConfiguration, AdminService, AdminUser } from '../../../core/services/admin/admin';
 import { NewDocumentChoice, NewDocumentChoiceDialog } from './new-document-choice-dialog';
 
 @Component({
@@ -50,12 +50,16 @@ export class AdminUsers implements OnInit {
   readonly documentReprocessing = signal(false);
   readonly ragConfigLoading = signal(false);
   readonly ragConfigSaving = signal(false);
+  readonly logsLoading = signal(false);
   readonly errorMessage = signal('');
   readonly documentMessage = signal('');
   readonly ragConfigMessage = signal('');
 
   users: AdminUser[] = [];
   documents: AdminDocument[] = [];
+  logs: AdminLogEntry[] = [];
+  logsResponse: AdminLogQueryResponse | null = null;
+  logsPage = 1;
   activeDocumentId: string | null = null;
   editForms: Record<string, FormGroup> = {};
   ragConfiguration: AdminRagConfiguration | null = null;
@@ -70,11 +74,17 @@ export class AdminUsers implements OnInit {
     openAIApiKey: [''],
     topK: [3, [Validators.required, Validators.min(1), Validators.max(10)]],
   });
+  readonly logSearchForm = this.fb.nonNullable.group({
+    search: [''],
+    level: [''],
+    pageSize: [50, [Validators.required, Validators.min(10), Validators.max(200)]],
+  });
 
   ngOnInit(): void {
     this.loadUsers();
     this.loadDocuments();
     this.loadRagConfiguration();
+    this.loadLogs();
   }
 
   loadUsers(): void {
@@ -146,6 +156,35 @@ export class AdminUsers implements OnInit {
       error: (err) => {
         this.ragConfigLoading.set(false);
         this.errorMessage.set(err?.error?.message ?? 'Failed to load RAG configuration.');
+      },
+    });
+  }
+
+  loadLogs(): void {
+    if (this.logSearchForm.invalid) {
+      this.logSearchForm.markAllAsTouched();
+      return;
+    }
+
+    const raw = this.logSearchForm.getRawValue();
+    this.logsLoading.set(true);
+    this.errorMessage.set('');
+
+    this.adminService.getLogs({
+      search: raw.search.trim() || undefined,
+      level: raw.level || undefined,
+      page: this.logsPage,
+      pageSize: raw.pageSize,
+    }).subscribe({
+      next: (response) => {
+        this.logsResponse = response;
+        this.logs = response.items;
+        this.logsPage = response.page;
+        this.logsLoading.set(false);
+      },
+      error: (err) => {
+        this.logsLoading.set(false);
+        this.errorMessage.set(err?.error?.message ?? 'Failed to load logs.');
       },
     });
   }
@@ -360,6 +399,51 @@ export class AdminUsers implements OnInit {
         this.errorMessage.set(err?.error?.message ?? 'Failed to reprocess documents.');
       },
     });
+  }
+
+  searchLogs(): void {
+    this.logsPage = 1;
+    this.loadLogs();
+  }
+
+  clearLogFilters(): void {
+    this.logsPage = 1;
+    this.logSearchForm.reset({
+      search: '',
+      level: '',
+      pageSize: 50,
+    });
+    this.loadLogs();
+  }
+
+  previousLogsPage(): void {
+    if (this.logsPage <= 1) {
+      return;
+    }
+
+    this.logsPage -= 1;
+    this.loadLogs();
+  }
+
+  nextLogsPage(): void {
+    if (this.logsPage >= this.logsTotalPages) {
+      return;
+    }
+
+    this.logsPage += 1;
+    this.loadLogs();
+  }
+
+  get logsTotalCount(): number {
+    return this.logsResponse?.totalCount ?? 0;
+  }
+
+  get logsTotalPages(): number {
+    if (!this.logsResponse) {
+      return 1;
+    }
+
+    return Math.max(1, Math.ceil(this.logsResponse.totalCount / this.logsResponse.pageSize));
   }
 
   reprocessActiveDocument(): void {

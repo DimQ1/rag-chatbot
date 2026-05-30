@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 
@@ -46,6 +46,35 @@ export interface AdminUpdateRagConfigurationPayload {
   embeddingModelId: string;
   openAIApiKey: string;
   topK: number;
+}
+
+export interface AdminLogEntry {
+  id: number;
+  timestampUtc: string;
+  level: string;
+  category: string;
+  message: string;
+  exception?: string | null;
+  eventId: number;
+  eventName?: string | null;
+  traceId?: string | null;
+  requestPath?: string | null;
+  requestMethod?: string | null;
+  userId?: string | null;
+}
+
+export interface AdminLogQueryResponse {
+  items: AdminLogEntry[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminLogQueryParams {
+  search?: string;
+  level?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 @Injectable({
@@ -102,5 +131,29 @@ export class AdminService {
 
   updateRagConfiguration(payload: AdminUpdateRagConfigurationPayload): Observable<AdminRagConfiguration> {
     return this.http.put<AdminRagConfiguration>(`${environment.apiUrl}/admin/rag-configuration`, payload);
+  }
+
+  getLogs(params: AdminLogQueryParams): Observable<AdminLogQueryResponse> {
+    let httpParams = new HttpParams();
+
+    if (params.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+
+    if (params.level) {
+      httpParams = httpParams.set('level', params.level);
+    }
+
+    if (params.page) {
+      httpParams = httpParams.set('page', params.page);
+    }
+
+    if (params.pageSize) {
+      httpParams = httpParams.set('pageSize', params.pageSize);
+    }
+
+    return this.http.get<AdminLogQueryResponse>(`${environment.apiUrl}/admin/logs`, {
+      params: httpParams,
+    });
   }
 }

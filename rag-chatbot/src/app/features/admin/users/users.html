@@ -5,7 +5,7 @@
     </button>
     <span>Admin Panel</span>
     <span class="spacer"></span>
-    <button mat-button (click)="loadUsers(); loadDocuments(); loadRagConfiguration()">Refresh</button>
+    <button mat-button (click)="loadUsers(); loadDocuments(); loadRagConfiguration(); loadLogs()">Refresh</button>
   </mat-toolbar>
 
   <div class="content">
@@ -194,6 +194,102 @@
                     <button mat-flat-button color="primary" (click)="saveRagConfiguration()" [disabled]="ragConfigSaving()">
                       Save configuration
                     </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-tab>
+
+          <mat-tab label="System Logs">
+            <div class="tab-panel logs-panel">
+              @if (logsLoading()) {
+                <div class="loading-wrap"><mat-spinner diameter="32"></mat-spinner></div>
+              } @else {
+                <div class="logs-shell">
+                  <div class="logs-toolbar" [formGroup]="logSearchForm">
+                    <mat-form-field appearance="outline" class="full-width logs-search-field">
+                      <mat-label>Search logs</mat-label>
+                      <input
+                        matInput
+                        formControlName="search"
+                        placeholder="Search message, category, path, exception, or user id"
+                        (keyup.enter)="searchLogs()" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="logs-filter-field">
+                      <mat-label>Level</mat-label>
+                      <mat-select formControlName="level">
+                        <mat-option value="">All levels</mat-option>
+                        <mat-option value="Trace">Trace</mat-option>
+                        <mat-option value="Debug">Debug</mat-option>
+                        <mat-option value="Information">Information</mat-option>
+                        <mat-option value="Warning">Warning</mat-option>
+                        <mat-option value="Error">Error</mat-option>
+                        <mat-option value="Critical">Critical</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="logs-filter-field">
+                      <mat-label>Page size</mat-label>
+                      <input matInput type="number" min="10" max="200" formControlName="pageSize" />
+                    </mat-form-field>
+
+                    <div class="logs-toolbar-actions">
+                      <button mat-flat-button color="primary" (click)="searchLogs()">Search</button>
+                      <button mat-stroked-button (click)="clearLogFilters()">Clear</button>
+                    </div>
+                  </div>
+
+                  <div class="logs-summary">
+                    <div class="user-count-pill">{{ logsTotalCount }} entries</div>
+                    <div class="config-updated">Page {{ logsPage }} / {{ logsTotalPages }}</div>
+                  </div>
+
+                  @if (logs.length === 0) {
+                    <mat-card class="log-entry empty-log-state">
+                      <mat-card-content>No logs match the current filters.</mat-card-content>
+                    </mat-card>
+                  } @else {
+                    <div class="log-entry-list">
+                      @for (log of logs; track log.id) {
+                        <mat-card class="log-entry">
+                          <mat-card-content>
+                            <div class="log-entry-header">
+                              <div class="log-entry-title-row">
+                                <span class="badge log-level-badge">{{ log.level }}</span>
+                                <span class="log-category">{{ log.category }}</span>
+                              </div>
+                              <div class="log-timestamp">{{ log.timestampUtc | date:'medium' }}</div>
+                            </div>
+
+                            <div class="log-entry-meta">
+                              @if (log.requestMethod || log.requestPath) {
+                                <span>{{ log.requestMethod ?? 'n/a' }} {{ log.requestPath ?? '' }}</span>
+                              }
+                              @if (log.userId) {
+                                <span>User: {{ log.userId }}</span>
+                              }
+                              @if (log.traceId) {
+                                <span>Trace: {{ log.traceId }}</span>
+                              }
+                              <span>Event: {{ log.eventId }}</span>
+                            </div>
+
+                            <pre class="log-message">{{ log.message }}</pre>
+
+                            @if (log.exception) {
+                              <div class="log-exception-title">Exception</div>
+                              <pre class="log-exception">{{ log.exception }}</pre>
+                            }
+                          </mat-card-content>
+                        </mat-card>
+                      }
+                    </div>
+                  }
+
+                  <div class="logs-pagination">
+                    <button mat-stroked-button (click)="previousLogsPage()" [disabled]="logsPage <= 1">Previous</button>
+                    <button mat-stroked-button (click)="nextLogsPage()" [disabled]="logsPage >= logsTotalPages">Next</button>
                   </div>
                 </div>
               }
