@@ -9,6 +9,7 @@ using rag_chatbot_api.Services;
 namespace rag_chatbot_api.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Admin")]
 [Route("api/[controller]")]
 public class AdminController(
     AppDbContext dbContext,
@@ -19,7 +20,6 @@ public class AdminController(
     private readonly IRagIndexService _ragIndexService = ragIndexService;
     private readonly string _knowledgeBasePath = Path.Combine(hostEnvironment.ContentRootPath, "KnowledgeBase");
 
-    [Authorize(Roles = "Admin")]
     [HttpGet("users")]
     public async Task<ActionResult<IReadOnlyList<AdminUserResponse>>> GetUsers()
     {
@@ -90,6 +90,66 @@ public class AdminController(
         await _dbContext.SaveChangesAsync();
 
         return Ok(new { message = "User deleted." });
+    }
+
+    [HttpGet("logs")]
+    public async Task<ActionResult<AdminLogQueryResponse>> GetLogs([FromQuery] AdminLogQueryRequest request, CancellationToken cancellationToken)
+    {
+        var normalizedPage = Math.Max(request.Page, 1);
+        var normalizedPageSize = Math.Clamp(request.PageSize, 10, 200);
+        var search = request.Search?.Trim();
+        var level = request.Level?.Trim();
+
+        var logsQuery = _dbContext.ApplicationLogEntries
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var likePattern = $"%{search}%";
+            logsQuery = logsQuery.Where(logEntry =>
+                EF.Functions.Like(logEntry.Message, likePattern)
+                || EF.Functions.Like(logEntry.Category, likePattern)
+                || (logEntry.Exception != null && EF.Functions.Like(logEntry.Exception, likePattern))
+                || (logEntry.RequestPath != null && EF.Functions.Like(logEntry.RequestPath, likePattern))
+                || (logEntry.UserId != null && EF.Functions.Like(logEntry.UserId, likePattern)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(level))
+        {
+            logsQuery = logsQuery.Where(logEntry => logEntry.Level == level);
+        }
+
+        var totalCount = await logsQuery.CountAsync(cancellationToken);
+        var items = await logsQuery
+            .OrderByDescending(logEntry => logEntry.TimestampUtc)
+            .ThenByDescending(logEntry => logEntry.Id)
+            .Skip((normalizedPage - 1) * normalizedPageSize)
+            .Take(normalizedPageSize)
+            .Select(logEntry => new AdminLogEntryResponse
+            {
+                Id = logEntry.Id,
+                TimestampUtc = logEntry.TimestampUtc,
+                Level = logEntry.Level,
+                Category = logEntry.Category,
+                Message = logEntry.Message,
+                Exception = logEntry.Exception,
+                EventId = logEntry.EventId,
+                EventName = logEntry.EventName,
+                TraceId = logEntry.TraceId,
+                RequestPath = logEntry.RequestPath,
+                RequestMethod = logEntry.RequestMethod,
+                UserId = logEntry.UserId
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new AdminLogQueryResponse
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = normalizedPage,
+            PageSize = normalizedPageSize
+        });
     }
 
     [HttpGet("documents")]
@@ -420,4 +480,5 @@ public class AdminController(
             UpdatedAtUtc = configuration.UpdatedAtUtc
         };
     }
+
 }

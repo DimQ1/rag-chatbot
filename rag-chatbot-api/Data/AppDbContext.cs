@@ -5,6 +5,7 @@ namespace rag_chatbot_api.Data;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<ApplicationLogEntry> ApplicationLogEntries => Set<ApplicationLogEntry>();
     public DbSet<AgentSessionState> AgentSessionStates => Set<AgentSessionState>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<RagRuntimeConfiguration> RagRuntimeConfigurations => Set<RagRuntimeConfiguration>();
@@ -15,6 +16,54 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .HasKey(logEntry => logEntry.Id);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .HasIndex(logEntry => logEntry.TimestampUtc);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .HasIndex(logEntry => new { logEntry.Level, logEntry.TimestampUtc });
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.Level)
+            .HasMaxLength(32)
+            .IsRequired();
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.Category)
+            .HasMaxLength(256)
+            .IsRequired();
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.Message)
+            .HasMaxLength(4000)
+            .IsRequired();
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.Exception)
+            .HasMaxLength(16000);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.EventName)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.TraceId)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.RequestPath)
+            .HasMaxLength(256);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.RequestMethod)
+            .HasMaxLength(16);
+
+        modelBuilder.Entity<ApplicationLogEntry>()
+            .Property(logEntry => logEntry.UserId)
+            .HasMaxLength(64);
+
         modelBuilder.Entity<AppUser>()
             .HasIndex(u => u.Email)
             .IsUnique();
