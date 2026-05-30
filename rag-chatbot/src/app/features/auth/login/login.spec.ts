@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { Login } from './login';
-import { AuthService } from '../../../core/services/auth';
+import { AuthService } from '../../../core/services/auth/auth';
 
 describe('Login', () => {
   let component: Login;

@@ -5,7 +5,7 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 import { SocialAuthService } from '@abacritt/angularx-social-login';
 import { Register } from './register';
-import { AuthService } from '../../../core/services/auth';
+import { AuthService } from '../../../core/services/auth/auth';
 
 describe('Register', () => {
   let component: Register;

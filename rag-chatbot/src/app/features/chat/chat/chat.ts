@@ -14,8 +14,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
-import { ChatService, ChatMessage } from '../../../core/services/chat';
-import { AuthService } from '../../../core/services/auth';
+import { ChatService, ChatMessage } from '../../../core/services/chat/chat';
+import { AuthService } from '../../../core/services/auth/auth';
 import { MarkdownContentDirective } from '../../../shared/directives/markdown-content';
 import { SessionsListComponent } from '../sessions-list/sessions-list';
 

@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { SessionsListComponent } from './sessions-list';
-import { ChatService, ChatSession } from '../../../core/services/chat';
+import { ChatService, ChatSession } from '../../../core/services/chat/chat';
 
 describe('SessionsListComponent', () => {
   let component: SessionsListComponent;

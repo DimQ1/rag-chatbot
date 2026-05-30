@@ -2,7 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { DocumentViewer } from './document-viewer';
-import { RagService } from '../../../core/services/rag';
+import { RagService } from '../../../core/services/rag/rag';
 
 describe('DocumentViewer', () => {
   let component: DocumentViewer;

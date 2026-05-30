@@ -10,7 +10,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { ChatService, ChatSession } from '../../../core/services/chat';
+import { ChatService, ChatSession } from '../../../core/services/chat/chat';
 import { RenameSessionDialogComponent } from './rename-session-dialog/rename-session-dialog.component';
 
 @Component({

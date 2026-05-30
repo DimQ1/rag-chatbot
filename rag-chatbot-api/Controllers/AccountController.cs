@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -76,7 +77,8 @@ public class AccountController(
 
     private async Task<AppUser?> GetCurrentUserAsync()
     {
-        var subject = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        var subject = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         if (!Guid.TryParse(subject, out var userId))
         {
             return null;
