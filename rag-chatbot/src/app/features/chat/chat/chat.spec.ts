@@ -2,8 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Observable } from 'rxjs';
 import { of, throwError } from 'rxjs';
 import { Chat } from './chat';
-import { AuthService } from '../../../core/services/auth';
-import { ChatService } from '../../../core/services/chat';
+import { AuthService } from '../../../core/services/auth/auth';
+import { ChatService } from '../../../core/services/chat/chat';
 
 describe('Chat', () => {
   let component: Chat;

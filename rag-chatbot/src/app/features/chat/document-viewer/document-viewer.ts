@@ -4,7 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { RagDocumentResponse, RagService } from '../../../core/services/rag';
+import { RagDocumentResponse, RagService } from '../../../core/services/rag/rag';
 
 @Component({
   selector: 'app-document-viewer',

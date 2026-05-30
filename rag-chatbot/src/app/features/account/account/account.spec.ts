@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { Account } from './account';
-import { AuthService } from '../../../core/services/auth';
+import { AuthService } from '../../../core/services/auth/auth';
 
 describe('Account', () => {
   let component: Account;
